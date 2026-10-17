@@ -383,7 +383,7 @@
         <div class="nutbox"><div><b>${r0(n.per100.k)}</b><span>ккал</span></div><div><b>${r0(n.per100.p)}</b><span>білки</span></div><div><b>${r0(n.per100.f)}</b><span>жири</span></div><div><b>${r0(n.per100.c)}</b><span>вуглев.</span></div></div>
         <p class="hint"><b>1 порція ≈ ${r0(n.g)} г:</b> ${Nutrition.line(n)}${r.simple ? " (вага сирого продукту)" : ""}</p>` : `<h3>КБЖУ на 1 порцію</h3>
         <div class="nutbox"><div><b>${r0(n.k)}</b><span>ккал</span></div><div><b>${r0(n.p)}</b><span>білки</span></div><div><b>${r0(n.f)}</b><span>жири</span></div><div><b>${r0(n.c)}</b><span>вуглев.</span></div></div>`}
-        ${n.missing.length ? `<p class="hint">Без даних для: ${esc(n.missing.join(", "))} — цифри неповні. Можна вписати КБЖУ вручну в «Редагувати».</p>` : `<p class="hint">Приблизно, ±15 %. Вага — сирих продуктів; готова страва легша, тож на 100 г готової трохи більше калорій. Порція тата ×${N(+(person("dad") || {}).w || 1)}, сина ×${N(+(person("kid") || {}).w || 1)}.</p>`}
+        ${n.missing.length ? `<p class="hint">Без даних для: ${esc(n.missing.join(", "))} — цифри неповні. Можна вписати КБЖУ вручну в «Редагувати».</p>` : `<p class="hint">Приблизно, ±15 %. Вага — сирих продуктів; готова страва легша, тож на 100 г готової трохи більше калорій. Порції: ${S.people.map(x => `${esc(x.name)} ×${N(+x.w || 1)}`).join(", ")}.</p>`}
       </div>
       ${r.tip ? `<div class="tip"><b>Порада:</b> ${esc(r.tip)}</div>` : ""}
       ${(r.ingredients || []).length ? `<div class="card">
