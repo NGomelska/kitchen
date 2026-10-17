@@ -84,22 +84,29 @@ const Nutrition = (() => {
     return null;
   }
 
-  /* КБЖУ однієї порції рецепта */
+  /* КБЖУ рецепта: на 1 порцію і на 100 г.
+     Вага — сума сирих інгредієнтів (після готування страва легшає, тож на 100 г готової — трохи більше). */
   function perPortion(recipe) {
     const sum = { k: 0, p: 0, f: 0, c: 0 }, missing = [];
-    if (recipe.nutr) { // вписано вручну на 1 порцію
-      return { k: +recipe.nutr.k || 0, p: +recipe.nutr.p || 0, f: +recipe.nutr.f || 0, c: +recipe.nutr.c || 0, missing };
-    }
+    let totalG = 0;
+    const s = +recipe.servings || 1;
     for (const ing of recipe.ingredients || []) {
       const e = find(ing.name);
       const g = grams(ing, e);
       if (g === 0) continue;
+      if (g != null) totalG += g;
       if (!e || g == null) { missing.push(ing.name); continue; }
       sum.k += e.k * g / 100; sum.p += e.p * g / 100; sum.f += e.f * g / 100; sum.c += e.c * g / 100;
     }
-    const s = +recipe.servings || 1;
-    return { k: sum.k / s, p: sum.p / s, f: sum.f / s, c: sum.c / s, missing };
+    const g = totalG / s; // грамів в одній порції
+    if (recipe.nutr) { // вписано вручну на 1 порцію
+      const n = { k: +recipe.nutr.k || 0, p: +recipe.nutr.p || 0, f: +recipe.nutr.f || 0, c: +recipe.nutr.c || 0 };
+      return { ...n, g, per100: g > 0 ? scale(n, 100 / g) : null, missing: [] };
+    }
+    const n = { k: sum.k / s, p: sum.p / s, f: sum.f / s, c: sum.c / s };
+    return { ...n, g, per100: totalG > 0 ? scale(sum, 100 / totalG) : null, missing };
   }
+  const scale = (n, m) => ({ k: n.k * m, p: n.p * m, f: n.f * m, c: n.c * m });
 
   const add = (a, b, m = 1) => ({ k: a.k + b.k * m, p: a.p + b.p * m, f: a.f + b.f * m, c: a.c + b.c * m });
   const zero = () => ({ k: 0, p: 0, f: 0, c: 0 });

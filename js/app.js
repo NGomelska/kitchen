@@ -191,11 +191,12 @@
 
   /* ---------- меню-конструктор ---------- */
   function slotNut(slot, pid) {
-    let n = Nutrition.zero(); const w = +(person(pid) || {}).w || 1;
+    let n = Nutrition.zero(), g = 0; const w = +(person(pid) || {}).w || 1;
     for (const d of slot ? slot.dishes || [] : []) {
       if (!(d.who || []).includes(pid)) continue;
-      const r = recipe(d.rid); if (r) n = Nutrition.add(n, nutOf(r), w);
+      const r = recipe(d.rid); if (r) { const x = nutOf(r); n = Nutrition.add(n, x, w); g += (x.g || 0) * w; }
     }
+    n.g = g;
     return n;
   }
   function renderMenu() {
@@ -228,7 +229,7 @@
         const who = S.people.filter(x => (d.who || []).includes(x.id)).map(x => x.short || x.name[0]).join("");
         return `<span class="dchip"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i><span class="t">${esc(r.title)}</span><span class="w">${esc(who)}</span></span>`;
       }).join("");
-      return `<button class="meal" data-meal="${m}">${bowl(groupsOf(dishes), 64)}<span class="body"><span class="lbl">${label}</span>${dishes.length ? `<span class="chips" style="gap:5px">${chips}</span>${n.k ? `<span class="nut">${esc(p.name)}: ${Nutrition.line(n)}</span>` : ""}` : `<span class="hint">Тапни, щоб зібрати миску</span>`}</span><span class="plusc">+</span></button>`;
+      return `<button class="meal" data-meal="${m}">${bowl(groupsOf(dishes), 64)}<span class="body"><span class="lbl">${label}</span>${dishes.length ? `<span class="chips" style="gap:5px">${chips}</span>${n.k ? `<span class="nut">${esc(p.name)}: тарілка ≈${r0(n.g)} г · ${Nutrition.line(n)}</span>` : ""}` : `<span class="hint">Тапни, щоб зібрати миску</span>`}</span><span class="plusc">+</span></button>`;
     }).join("");
 
     const kid = (S.meta.week || {}).kid;
@@ -267,7 +268,7 @@
     const sel = new Set(P.dishes.map(d => d.rid));
     $("#pkGrid").innerHTML = arr.length ? arr.map(r => {
       const n = nutOf(r);
-      return `<button class="dish${sel.has(r.id) ? " sel" : ""}" data-act="pkT" data-rid="${esc(r.id)}">${bowl([GROUPS[r.group] ? r.group : "dish"], 36)}<span class="nm">${esc(r.title)}</span><span class="nut">${n.k ? `${r0(n.k)} ккал · Б ${r0(n.p)} на порцію` : ""}</span></button>`;
+      return `<button class="dish${sel.has(r.id) ? " sel" : ""}" data-act="pkT" data-rid="${esc(r.id)}">${bowl([GROUPS[r.group] ? r.group : "dish"], 36)}<span class="nm">${esc(r.title)}</span><span class="nut">${n.per100 ? `100 г: ${r0(n.per100.k)} ккал · Б ${r0(n.per100.p)}` : n.k ? `${r0(n.k)} ккал · Б ${r0(n.p)} на порцію` : ""}</span></button>`;
     }).join("") : `<p class="empty" style="grid-column:1/-1">Нічого не знайшла. Додай просту страву нижче.</p>`;
   }
   function drawPkSimple() {
@@ -346,7 +347,7 @@
     if (!arr.length) { el.innerHTML = `<p class="empty">Нічого не знайшла. Спробуй інше слово чи тег.</p>`; return; }
     const card = r => {
       const n = nutOf(r);
-      return `<button class="rec" data-id="${esc(r.id)}">${r.thumb ? `<img class="th" src="${esc(r.thumb)}" alt="">` : `<span class="th">${bowl([GROUPS[r.group] ? r.group : "dish"], 60)}</span>`}<span class="meta"><span class="t">${esc(r.title)}</span><span class="nut">${n.k ? `на порцію: ${Nutrition.line(n)}` : ""}</span><span class="tags">${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</span></span></button>`;
+      return `<button class="rec" data-id="${esc(r.id)}">${r.thumb ? `<img class="th" src="${esc(r.thumb)}" alt="">` : `<span class="th">${bowl([GROUPS[r.group] ? r.group : "dish"], 60)}</span>`}<span class="meta"><span class="t">${esc(r.title)}</span><span class="nut">${n.per100 ? `на 100 г: ${Nutrition.line(n.per100)}` : n.k ? `на порцію: ${Nutrition.line(n)}` : ""}</span><span class="tags">${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</span></span></button>`;
     };
     // «Усі» — розкладено по категоріях з заголовками
     if (S.rcat === "all" && !S.q) {
@@ -378,9 +379,11 @@
       <div class="tags"><span class="pill">${esc(catOf(r))}</span><span class="pill"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i> ${esc(GROUPS[r.group] || "Ціла страва")}</span>${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
       ${r.thumb ? `<img class="bigimg" src="${esc(r.thumb)}" alt="Фото рецепта">` : ""}
       ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">Відкрити оригінал ↗</a>` : ""}
-      <div class="card stack" style="gap:8px"><h3>КБЖУ на 1 порцію</h3>
-        <div class="nutbox"><div><b>${r0(n.k)}</b><span>ккал</span></div><div><b>${r0(n.p)}</b><span>білки</span></div><div><b>${r0(n.f)}</b><span>жири</span></div><div><b>${r0(n.c)}</b><span>вуглев.</span></div></div>
-        ${n.missing.length ? `<p class="hint">Без даних для: ${esc(n.missing.join(", "))} — цифри неповні. Можна вписати КБЖУ вручну в «Редагувати».</p>` : `<p class="hint">Приблизно, ±15 %. Для тата порція ×${N(+(person("dad") || {}).w || 1)}, для сина ×${N(+(person("kid") || {}).w || 1)}.</p>`}
+      <div class="card stack" style="gap:8px">${n.per100 ? `<h3>КБЖУ на 100 г</h3>
+        <div class="nutbox"><div><b>${r0(n.per100.k)}</b><span>ккал</span></div><div><b>${r0(n.per100.p)}</b><span>білки</span></div><div><b>${r0(n.per100.f)}</b><span>жири</span></div><div><b>${r0(n.per100.c)}</b><span>вуглев.</span></div></div>
+        <p class="hint"><b>1 порція ≈ ${r0(n.g)} г:</b> ${Nutrition.line(n)}${r.simple ? " (вага сирого продукту)" : ""}</p>` : `<h3>КБЖУ на 1 порцію</h3>
+        <div class="nutbox"><div><b>${r0(n.k)}</b><span>ккал</span></div><div><b>${r0(n.p)}</b><span>білки</span></div><div><b>${r0(n.f)}</b><span>жири</span></div><div><b>${r0(n.c)}</b><span>вуглев.</span></div></div>`}
+        ${n.missing.length ? `<p class="hint">Без даних для: ${esc(n.missing.join(", "))} — цифри неповні. Можна вписати КБЖУ вручну в «Редагувати».</p>` : `<p class="hint">Приблизно, ±15 %. Вага — сирих продуктів; готова страва легша, тож на 100 г готової трохи більше калорій. Порція тата ×${N(+(person("dad") || {}).w || 1)}, сина ×${N(+(person("kid") || {}).w || 1)}.</p>`}
       </div>
       ${r.tip ? `<div class="tip"><b>Порада:</b> ${esc(r.tip)}</div>` : ""}
       ${(r.ingredients || []).length ? `<div class="card">
