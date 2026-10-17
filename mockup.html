@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Кухня — макет</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Sketchbook + bowl: warm paper, ink lines that wobble, food-group colours do the talking. */
+:root{
+  --paper:#FBF6EC; --paper-2:#F3EBDC; --card:#FFFDF8; --ink:#2B2620; --ink-soft:#6E6457; --line:#E2D6C2;
+  --protein:#E4775B; --base:#EDB443; --veg:#6FA86F; --sauce:#9B86C9; --sweet:#EE9BB5; --dish:#7FA7C9;
+  --accent:#2F6B4A; --accent-ink:#FFFDF8;
+  --f-hand:"Caveat","Comic Sans MS",cursive; --f-body:"Manrope",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#1E1B17; --paper-2:#26221D; --card:#2A2621; --ink:#F2EADC; --ink-soft:#B4A895; --line:#3D372F;
+  --accent:#8FCFA4; --accent-ink:#1E1B17;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.4;
+  background-image:radial-gradient(rgba(120,90,40,.06) 1px,transparent 1px);background-size:6px 6px}
+.wrap{max-width:440px;margin:0 auto;padding:14px 16px 150px}
+h1{font-family:var(--f-hand);font-size:2.4rem;margin:0;line-height:1}
+.sub{color:var(--ink-soft);font-size:.85rem}
+.top{display:flex;justify-content:space-between;align-items:end;margin-bottom:10px}
+.underline{display:block;margin-top:-4px}
+/* week strip */
+.week{display:flex;gap:6px;overflow-x:auto;padding:6px 2px 10px}
+.dayc{flex:none;width:46px;padding:6px 0;border-radius:14px;text-align:center;border:1.5px solid var(--line);background:var(--card)}
+.dayc b{display:block;font-family:var(--f-hand);font-size:1.35rem;line-height:1}
+.dayc span{font-size:.7rem;color:var(--ink-soft)}
+.dayc.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.dayc.on span{color:var(--paper)}
+.dots{display:flex;gap:2px;justify-content:center;margin-top:4px}
+.dots i{width:5px;height:5px;border-radius:50%}
+/* meal rows */
+.meal{display:grid;grid-template-columns:78px 1fr;gap:12px;align-items:center;background:var(--card);border:1.5px solid var(--line);border-radius:20px;padding:12px;margin-bottom:12px;position:relative}
+.meal .lbl{font-family:var(--f-hand);font-size:1.5rem;line-height:1;margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px 4px 6px;border-radius:99px;font-size:.82rem;font-weight:600;background:var(--paper-2)}
+.chip .sw{width:10px;height:10px;border-radius:50%;flex:none}
+.who{display:flex;gap:3px;margin-top:8px}
+.av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:.7rem;font-weight:800;border:1.5px solid var(--ink);background:var(--card)}
+.av.off{opacity:.25}
+.add{position:absolute;right:10px;top:10px;width:30px;height:30px;border-radius:50%;border:1.5px dashed var(--ink-soft);display:grid;place-items:center;color:var(--ink-soft);font-weight:700}
+.empty{color:var(--ink-soft);font-size:.85rem;font-style:italic}
+/* sticky total */
+.total{position:fixed;left:50%;transform:translateX(-50%);bottom:74px;width:min(408px,calc(100% - 32px));background:var(--accent);color:var(--accent-ink);border-radius:18px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;font-weight:700;box-shadow:0 6px 0 rgba(0,0,0,.12)}
+.total small{display:block;font-weight:500;opacity:.8}
+.cart{font-family:var(--f-hand);font-size:1.5rem}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1.5px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);max-width:100%}
+nav div{text-align:center;padding:8px 0 10px;font-size:.78rem;font-weight:700;color:var(--ink-soft)}
+nav div svg{display:block;margin:0 auto 2px}
+nav .on{color:var(--ink)}
+/* picker sheet */
+.sheet{position:fixed;inset:auto 0 0 0;max-height:78vh;background:var(--card);border-radius:26px 26px 0 0;border-top:1.5px solid var(--line);padding:10px 16px 20px;box-shadow:0 -10px 30px rgba(0,0,0,.18);overflow:auto;z-index:5}
+.grab{width:44px;height:5px;border-radius:9px;background:var(--line);margin:0 auto 8px}
+.sheet h2{font-family:var(--f-hand);font-size:1.9rem;margin:0}
+.groups{display:flex;gap:6px;overflow-x:auto;margin:8px 0 12px}
+.g{flex:none;display:flex;align-items:center;gap:6px;padding:6px 12px 6px 8px;border-radius:99px;border:1.5px solid var(--line);font-weight:700;font-size:.85rem}
+.g.on{border-color:var(--ink);background:var(--paper-2)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dish{border:1.5px solid var(--line);border-radius:18px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--paper)}
+.dish.sel{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.dish .nm{font-weight:700;font-size:.88rem;line-height:1.2}
+.dish .meta{font-size:.75rem;color:var(--ink-soft)}
+.simple{border:1.5px dashed var(--ink-soft);border-radius:18px;padding:12px;display:flex;gap:10px;align-items:center;margin-top:12px;font-weight:700}
+.simple span{font-weight:400;color:var(--ink-soft);font-size:.8rem;display:block}
+.picked{margin-top:14px;padding-top:12px;border-top:1.5px dashed var(--line)}
+.prow{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
+.done{margin-top:12px;width:100%;border:0;border-radius:16px;padding:14px;background:var(--ink);color:var(--paper);font:700 1rem var(--f-body)}
+.scrim{position:fixed;inset:0;background:rgba(30,20,10,.35);z-index:4}
+.cap{font-family:var(--f-hand);font-size:1.3rem;color:var(--ink-soft);text-align:center;margin:4px 0 0}
+</style>
+</head>
+<body>
+<!-- спільний «олівцевий» фільтр: лінії трохи тремтять, як намальовані -->
+<svg width="0" height="0" style="position:absolute"><defs>
+  <filter id="pencil"><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="2.2"/></filter>
+</defs></svg>
+
+<div class="wrap">
+  <div class="top">
+    <div><h1>Кухня</h1>
+      <svg class="underline" width="110" height="10" viewBox="0 0 110 10"><path d="M2 6 C 30 2, 60 9, 108 4" stroke="var(--protein)" stroke-width="3" fill="none" stroke-linecap="round" filter="url(#pencil)"/></svg>
+    </div>
+    <div class="sub">18–24 жовтня</div>
+  </div>
+
+  <div class="week" id="week"></div>
+
+  <div id="meals"></div>
+  <p class="cap">↑ тапни на миску, щоб додати страву</p>
+</div>
+
+<div class="total"><div>Порахувати покупки<small>23 продукти на тиждень</small></div><span class="cart">→</span></div>
+<nav>
+  <div><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)"><path d="M4 7h16l-2 11H6z M9 7a3 3 0 0 1 6 0" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>Купити</div>
+  <div class="on"><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)"><path d="M3 11h18a9 7 0 0 1-18 0z M7 8c0-2 2-2 2-4 M12 8c0-2 2-2 2-4" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>Меню</div>
+  <div><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)"><path d="M5 4h11l3 3v13H5z M8 10h8 M8 14h8 M8 18h5" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>Рецепти</div>
+  <div><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)"><circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/></svg>Ще</div>
+</nav>
+
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" hidden>
+  <div class="grab"></div>
+  <h2>Обід, вівторок</h2>
+  <div class="groups" id="groups"></div>
+  <div class="grid" id="grid"></div>
+  <div class="simple"><svg width="34" height="34" viewBox="0 0 40 40" filter="url(#pencil)"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--ink)" stroke-width="2" stroke-dasharray="4 4"/><path d="M20 12v16M12 20h16" stroke="var(--ink)" stroke-width="2.4" stroke-linecap="round"/></svg>
+    <div>Проста страва вручну<span>варений рис, гречка, салат з огірків — назва і грами на порцію</span></div></div>
+  <div class="picked">
+    <div class="prow"><span class="chip"><i class="sw" style="background:var(--protein)"></i>Котлети з індички</span><span class="who" style="margin:0"><span class="av">Я</span><span class="av">Т</span><span class="av">С</span></span></div>
+    <div class="prow"><span class="chip"><i class="sw" style="background:var(--base)"></i>Варений рис · 70 г</span><span class="who" style="margin:0"><span class="av off">Я</span><span class="av">Т</span><span class="av">С</span></span></div>
+    <div class="prow"><span class="chip"><i class="sw" style="background:var(--veg)"></i>Баклажани з картоплею</span><span class="who" style="margin:0"><span class="av">Я</span><span class="av off">Т</span><span class="av off">С</span></span></div>
+    <button class="done">Готово · ще на завтра ↻</button>
+  </div>
+</div>
+
+<script>
+const G={protein:["Білок","var(--protein)"],base:["Основа","var(--base)"],veg:["Овочі","var(--veg)"],sauce:["Соус і зверху","var(--sauce)"],sweet:["Десерт","var(--sweet)"],dish:["Ціла страва","var(--dish)"]};
+/* миска згори: сегменти за групами страв */
+function bowl(parts,size=70){
+  const r=size/2-6,c=size/2; let a=-90,h="";
+  const tot=parts.length||1;
+  parts.forEach(p=>{const s=360/tot,a1=a*Math.PI/180,a2=(a+s)*Math.PI/180,ri=r-4;
+    const x1=c+ri*Math.cos(a1),y1=c+ri*Math.sin(a1),x2=c+ri*Math.cos(a2),y2=c+ri*Math.sin(a2);
+    h+=tot===1?`<circle cx="${c}" cy="${c}" r="${ri}" fill="${G[p][1]}"/>`:`<path d="M${c} ${c}L${x1} ${y1}A${ri} ${ri} 0 ${s>180?1:0} 1 ${x2} ${y2}Z" fill="${G[p][1]}" stroke="var(--card)" stroke-width="2"/>`;a+=s;});
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" filter="url(#pencil)"><circle cx="${c}" cy="${c+2}" r="${r+3}" fill="rgba(0,0,0,.08)"/><circle cx="${c}" cy="${c}" r="${r+3}" fill="var(--paper)" stroke="var(--ink)" stroke-width="2"/>${parts.length?h:`<circle cx="${c}" cy="${c}" r="${r-4}" fill="none" stroke="var(--ink-soft)" stroke-dasharray="3 4"/>`}<circle cx="${c}" cy="${c}" r="${r+3}" fill="none" stroke="var(--ink)" stroke-width="2"/></svg>`;
+}
+const days=[["Нд","18",["protein","base","veg"]],["Пн","19",["protein","veg"]],["Вт","20",["protein","base","veg"]],["Ср","21",["dish"]],["Чт","22",["protein","base"]],["Пт","23",[]],["Сб","24",[]]];
+week.innerHTML=days.map((d,i)=>`<div class="dayc${i===2?" on":""}"><b>${d[0]}</b><span>${d[1]}.10</span><div class="dots">${d[2].map(p=>`<i style="background:${G[p][1]}"></i>`).join("")}</div></div>`).join("");
+const meals=[
+  ["Сніданок",["protein","sauce","base"],[["Білкова тортилья","protein"],["Хумус","sauce"]],"Я",[1,0,0]],
+  ["",["sweet"],[["Сирники","sweet"]],"",[0,0,1]],
+  ["Обід",["protein","base","veg"],[["Котлети з індички","protein"],["Варений рис","base"],["Баклажани з картоплею","veg"]],"",[1,1,1]],
+  ["Вечеря",["dish"],[["Тефтелі в томатному соусі","dish"],["Макарони","base"]],"",[1,1,1]],
+];
+document.getElementById("meals").innerHTML=meals.map(m=>`<div class="meal"><div>${bowl(m[1])}</div><div>${m[0]?`<div class="lbl">${m[0]}</div>`:""}<div class="chips">${m[2].map(c=>`<span class="chip"><i class="sw" style="background:${G[c[1]][1]}"></i>${c[0]}</span>`).join("")}</div><div class="who">${["Я","Т","С"].map((n,i)=>`<span class="av${m[4][i]?"":" off"}">${n}</span>`).join("")}</div></div><span class="add">+</span></div>`).join("");
+groups.innerHTML=Object.entries(G).map(([k,v],i)=>`<span class="g${i===0?" on":""}">${bowl([k],22)}${v[0]}</span>`).join("");
+const dishes=[["Котлети з індички","protein","на 5 порцій",1],["Котлети з тунця","protein","на 3 порції",0],["Курячі стегенця","protein","аерогриль",0],["Лосось","protein","аерогриль",0]];
+grid.innerHTML=dishes.map(d=>`<div class="dish${d[3]?" sel":""}">${bowl([d[1]],40)}<div class="nm">${d[0]}</div><div class="meta">${d[2]}</div></div>`).join("");
+if(location.hash==="#picker"){sheet.hidden=false;scrim.hidden=false;}
+</script>
+</body>
+</html>

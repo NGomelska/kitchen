@@ -1,0 +1,15 @@
+rules_version = '2';
+// Правила доступу: читати й змінювати дані можуть тільки акаунти родини.
+// Пошти — ті самі, що в js/firebase-config.js (FAMILY_EMAILS), маленькими літерами.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function family() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in ['nadiya.gomelska@gmail.com'];  // + пошта чоловіка
+    }
+    match /{col}/{docId} {
+      allow read, write: if family() && col in ['items', 'recipes', 'slots', 'meta', 'settings'];
+    }
+  }
+}

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Кухня</title>
+<meta name="theme-color" content="#FBF6EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1E1B17" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-64.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<!-- «олівцевий» фільтр: лінії трохи тремтять, як намальовані -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="pencil"><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="2.2"/></filter>
+</defs></svg>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Кухня</h1>
+      <svg class="underline" width="110" height="10" viewBox="0 0 110 10" aria-hidden="true"><path d="M2 6 C 30 2, 60 9, 108 4" stroke="var(--protein)" stroke-width="3" fill="none" stroke-linecap="round" filter="url(#pencil)"/></svg>
+    </div>
+    <p class="sub" id="sub"></p>
+  </header>
+
+  <section data-tab="buy" hidden>
+    <form id="addForm" class="add" autocomplete="off">
+      <input type="text" id="addName" placeholder="Що купити? Напр.: 2 кг картоплі, молоко">
+      <div class="addrow">
+        <select id="addCat" aria-label="Відділ магазину"></select>
+        <label class="chk"><input type="checkbox" id="addStaple"> завжди тримати вдома</label>
+        <button class="btn" type="submit">Додати</button>
+      </div>
+    </form>
+    <div id="buyList"></div>
+  </section>
+
+  <section data-tab="menu">
+    <div class="week" id="week"></div>
+    <div id="totals"></div>
+    <div id="meals"></div>
+    <div id="kidNote"></div>
+    <button class="calc" id="planCalc" type="button"><span>Порахувати покупки<small id="calcSub">на цей тиждень</small></span><span class="arr">→</span></button>
+  </section>
+
+  <section data-tab="rec" hidden>
+    <div class="rectools">
+      <input type="search" id="recSearch" placeholder="Пошук: назва чи продукт">
+      <button class="btn" id="recNew" type="button">+ Рецепт</button>
+    </div>
+    <div class="chips" id="recTags"></div>
+    <div id="recList" class="reclist"></div>
+  </section>
+
+  <section data-tab="more" hidden>
+    <div class="stack" id="moreBody"></div>
+  </section>
+</div>
+
+<nav class="tabs" aria-label="Розділи"><div class="in" role="tablist">
+  <button role="tab" data-go="buy" aria-selected="false"><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)" aria-hidden="true"><path d="M4 7h16l-2 12H6z M9 7a3 3 0 0 1 6 0" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>Купити<span class="c" id="cBuy"></span></button>
+  <button role="tab" data-go="menu" aria-selected="true"><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)" aria-hidden="true"><path d="M3 11h18a9 7 0 0 1-18 0z M8 8c0-2 2-2 2-4 M13 8c0-2 2-2 2-4" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>Меню<span class="c"></span></button>
+  <button role="tab" data-go="rec" aria-selected="false"><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)" aria-hidden="true"><path d="M5 4h11l3 3v13H5z M8 10h8 M8 14h8 M8 18h5" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>Рецепти<span class="c"></span></button>
+  <button role="tab" data-go="more" aria-selected="false"><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)" aria-hidden="true"><circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/></svg>Ще<span class="c"></span></button>
+</div></nav>
+
+<div class="sheet" id="sheet" hidden><div class="wrap" id="sheetBody"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/portions.js"></script>
+<script src="js/nutrition.js"></script>
+<script src="js/seed.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
