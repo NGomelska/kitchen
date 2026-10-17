@@ -12,6 +12,21 @@
     [/папір|мило|шампун|порош|губк|пакет|засіб|підгуз|серветк|фольг|зубн/i, "Дім і гігієна"]
   ];
   const TAGS = ["Сім'я", "Для мене", "Син їсть", "Десерт", "Швидко"];
+  const RCATS = ["Сніданки", "М'ясні страви", "Рибні страви", "Гарніри", "Салати й овочі", "Закуски", "Супи", "ПП-десерти", "Десерти", "Випічка", "Соуси", "Інше"];
+  /* категорія рецепта: вибрана вручну, а якщо ні — здогадка з групи страви */
+  const catOf = r => {
+    if (r.cat && RCATS.includes(r.cat)) return r.cat;
+    const t = String(r.title || "").toLowerCase();
+    if (/лосос|риб|тунц|тунец|сьомг/.test(t)) return "Рибні страви";
+    if (/сніданок|омлет/.test(t)) return "Сніданки";
+    if (/суп|борщ|бульйон/.test(t)) return "Супи";
+    if (r.group === "protein") return "М'ясні страви";
+    if (r.group === "base") return "Гарніри";
+    if (r.group === "veg") return "Салати й овочі";
+    if (r.group === "sauce") return "Соуси";
+    if (r.group === "sweet") return (r.tags || []).includes("Для мене") ? "ПП-десерти" : "Десерти";
+    return "Інше";
+  };
   const GROUPS = { protein: "Білок", base: "Основа", veg: "Овочі", sauce: "Соус і зверху", sweet: "Десерт", dish: "Ціла страва" };
   const GKEYS = Object.keys(GROUPS);
   const MEALS = [["b", "Сніданок"], ["l", "Обід"], ["d", "Вечеря"], ["x", "Перекус / десерт"]];
@@ -38,7 +53,7 @@
 
   const S = {
     items: [], recipes: [], slots: [], meta: {}, people: SEED.people,
-    tag: "all", q: "", pantryEdit: false,
+    tag: "all", rcat: "all", q: "", pantryEdit: false,
     weekStart: null, day: null, viewP: "me", profile: ""
   };
   let nutCache = new Map();
@@ -312,22 +327,31 @@
 
   /* ---------- рецепти ---------- */
   function renderTags() {
-    $("#recTags").innerHTML = [["all", "Усі"], ...TAGS.map(t => [t, t]), ["simple", "Прості"]].map(([v, l]) => `<button class="chip${S.tag === v ? " on" : ""}" data-tag="${esc(v)}">${esc(l)}</button>`).join("");
+    const full = S.recipes.filter(r => !r.simple), cnt = c => full.filter(r => catOf(r) === c).length;
+    const cats = RCATS.filter(c => cnt(c));
+    $("#recCats").innerHTML = [["all", `Усі ${full.length}`], ...cats.map(c => [c, `${c} ${cnt(c)}`]), ["simple", "Прості страви"]].map(([v, l]) => `<button class="gbtn${S.rcat === v ? " on" : ""}" data-rcat="${esc(v)}">${esc(l)}</button>`).join("");
+    $("#recTags").innerHTML = [["all", "Для всіх"], ...TAGS.map(t => [t, t])].map(([v, l]) => `<button class="chip small${S.tag === v ? " on" : ""}" data-tag="${esc(v)}">${esc(l)}</button>`).join("");
   }
+  $("#recCats").onclick = ev => { const b = ev.target.closest("[data-rcat]"); if (!b) return; S.rcat = b.dataset.rcat; renderTags(); renderRecipes(); };
   $("#recTags").onclick = ev => { const b = ev.target.closest("[data-tag]"); if (!b) return; S.tag = b.dataset.tag; renderTags(); renderRecipes(); };
   $("#recSearch").oninput = ev => { S.q = ev.target.value.trim().toLowerCase(); renderRecipes(); };
   function renderRecipes() {
     let arr = S.recipes.slice().sort((a, b) => String(a.title).localeCompare(String(b.title), "uk"));
-    if (S.tag === "simple") arr = arr.filter(r => r.simple);
-    else { arr = arr.filter(r => !r.simple); if (S.tag !== "all") arr = arr.filter(r => (r.tags || []).includes(S.tag)); }
+    if (S.rcat === "simple") arr = arr.filter(r => r.simple);
+    else { arr = arr.filter(r => !r.simple); if (S.rcat !== "all") arr = arr.filter(r => catOf(r) === S.rcat); }
+    if (S.tag !== "all") arr = arr.filter(r => (r.tags || []).includes(S.tag));
     if (S.q) arr = arr.filter(r => (r.title + " " + (r.ingredients || []).map(i => i.name).join(" ")).toLowerCase().includes(S.q));
     const el = $("#recList");
     if (!S.recipes.length) { el.innerHTML = `<p class="empty">Поки порожньо. Натисни «+ Рецепт».</p>`; return; }
     if (!arr.length) { el.innerHTML = `<p class="empty">Нічого не знайшла. Спробуй інше слово чи тег.</p>`; return; }
-    el.innerHTML = arr.map(r => {
+    const card = r => {
       const n = nutOf(r);
       return `<button class="rec" data-id="${esc(r.id)}">${r.thumb ? `<img class="th" src="${esc(r.thumb)}" alt="">` : `<span class="th">${bowl([GROUPS[r.group] ? r.group : "dish"], 60)}</span>`}<span class="meta"><span class="t">${esc(r.title)}</span><span class="nut">${n.k ? `на порцію: ${Nutrition.line(n)}` : ""}</span><span class="tags">${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</span></span></button>`;
-    }).join("");
+    };
+    // «Усі» — розкладено по категоріях з заголовками
+    if (S.rcat === "all" && !S.q) {
+      el.innerHTML = RCATS.map(c => { const a = arr.filter(r => catOf(r) === c); return a.length ? `<h3 style="margin-top:8px">${esc(c)}</h3>${a.map(card).join("")}` : ""; }).join("");
+    } else el.innerHTML = arr.map(card).join("");
   }
   $("#recList").onclick = ev => { const b = ev.target.closest(".rec"); if (b) openRecipe(b.dataset.id); };
   $("#recNew").onclick = () => openForm(null);
@@ -351,7 +375,7 @@
     openSheet(`<div class="shhead"><button class="btn ghost small" data-act="close">← Назад</button><button class="btn ghost small" data-act="edit">Редагувати</button></div>
     <div class="stack" data-rid="${esc(r.id)}">
       <h2 style="font-size:2rem">${esc(r.title)}</h2>
-      <div class="tags"><span class="pill"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i> ${esc(GROUPS[r.group] || "Ціла страва")}</span>${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
+      <div class="tags"><span class="pill">${esc(catOf(r))}</span><span class="pill"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i> ${esc(GROUPS[r.group] || "Ціла страва")}</span>${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
       ${r.thumb ? `<img class="bigimg" src="${esc(r.thumb)}" alt="Фото рецепта">` : ""}
       ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">Відкрити оригінал ↗</a>` : ""}
       <div class="card stack" style="gap:8px"><h3>КБЖУ на 1 порцію</h3>
@@ -448,6 +472,7 @@
       <div class="parse"><button class="btn ghost" type="button" id="fParse">Розібрати рецепт</button><span class="state" id="fState"></span></div>
       <hr>
       <label class="fl">Назва<input type="text" id="fTitle" value="${esc(r ? r.title : "")}"></label>
+      <label class="fl">Категорія<select id="fCat">${RCATS.map(c => `<option${c === (r ? catOf(r) : (prefill && prefill.cat) || "Інше") ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
       <label class="fl">Що це в мисці<select id="fGroup">${GKEYS.map(k => `<option value="${k}"${k === ((r && r.group) || "dish") ? " selected" : ""}>${GROUPS[k]}</option>`).join("")}</select></label>
       <div class="group"><span class="fl">Для кого</span><div class="chips" id="fTags"></div></div>
       <label class="fl">На скільки порцій рецепт<input type="number" id="fServ" min="0.5" step="0.5" value="${esc(r ? r.servings || 4 : 4)}"></label>
@@ -505,6 +530,7 @@
       if (j.title && !$("#fTitle").value.trim()) $("#fTitle").value = j.title;
       if (j.servings) $("#fServ").value = j.servings;
       if (j.group && GROUPS[j.group]) $("#fGroup").value = j.group;
+      if (j.cat && RCATS.includes(j.cat)) $("#fCat").value = j.cat;
       if (j.ingredients && j.ingredients.length) $("#fIng").value = j.ingredients.map(Portions.lineOf).join("\n");
       if (j.steps && j.steps.length) $("#fSteps").value = j.steps.join("\n");
       if (j.tip) $("#fTip").value = j.tip;
@@ -521,7 +547,7 @@
     const nutr = [nv("#nK"), nv("#nP"), nv("#nF"), nv("#nC")];
     const old = F.id ? recipe(F.id) : null;
     const body = {
-      title, group: $("#fGroup").value, tags: [...F.tags], servings: Math.max(0.5, +$("#fServ").value || 4),
+      title, cat: $("#fCat").value, group: $("#fGroup").value, tags: [...F.tags], servings: Math.max(0.5, +$("#fServ").value || 4),
       ingredients: lines($("#fIng").value).map(Portions.parseLine).filter(Boolean).map(i => ({ ...i, name: cap(i.name) })),
       steps: lines($("#fSteps").value), tip: $("#fTip").value.trim(), link: $("#fLink").value.trim(),
       thumb: F.thumb || "", simple: !!(old && old.simple), updatedAt: Date.now(),
@@ -604,7 +630,7 @@
   (async () => {
     await Store.init();
     Store.sub("items", d => { S.items = d; renderBuy(); });
-    Store.sub("recipes", d => { S.recipes = d; nutCache = new Map(); renderRecipes(); renderMenu(); });
+    Store.sub("recipes", d => { S.recipes = d; nutCache = new Map(); renderTags(); renderRecipes(); renderMenu(); });
     Store.sub("slots", d => { S.slots = d; renderMenu(); });
     Store.sub("meta", d => {
       S.meta = Object.fromEntries(d.map(x => [x.id, x]));
