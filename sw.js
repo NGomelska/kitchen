@@ -1,5 +1,5 @@
 /* Щоб застосунок відкривався і без інтернету (дані — окремо, у сховищі). */
-const CACHE = "kitchen-v5";
+const CACHE = "kitchen-v6";
 const SHELL = ["./", "index.html", "styles.css", "manifest.webmanifest", "js/portions.js", "js/nutrition.js", "js/seed.js", "js/firebase-config.js", "js/store.js", "js/cloud.js", "js/app.js", "icons/icon-192.png"];
 
 self.addEventListener("install", e => {
@@ -13,7 +13,8 @@ self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
   if (e.request.method !== "GET" || u.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r; })
+    // no-cache: завжди питаємо сервер, чи є нова версія (інакше браузер 10 хв віддає стару)
+    fetch(e.request.url, { cache: "no-cache" }).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r; })
       .catch(() => caches.match(e.request, { ignoreSearch: true }).then(r => r || caches.match("./")))
   );
 });
