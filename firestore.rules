@@ -6,7 +6,7 @@ service cloud.firestore {
     function family() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in ['nadiya.gomelska@gmail.com'];  // + пошта чоловіка
+        && request.auth.token.email.lower() in ['nadiya.gomelska@gmail.com', 'holmoff@gmail.com'];
     }
     match /{col}/{docId} {
       allow read, write: if family() && col in ['items', 'recipes', 'slots', 'meta', 'settings'];

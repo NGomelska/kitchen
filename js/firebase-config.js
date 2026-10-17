@@ -19,4 +19,4 @@ window.FIREBASE_CONFIG = {
 };
 */
 /* Хто має доступ (Google-акаунти). Ті самі пошти — у правилах Firestore (firestore.rules). */
-window.FAMILY_EMAILS = ["nadiya.gomelska@gmail.com"]; // + пошта чоловіка, коли буде
+window.FAMILY_EMAILS = ["nadiya.gomelska@gmail.com", "holmoff@gmail.com"];
