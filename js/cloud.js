@@ -59,7 +59,7 @@ export async function start({ config, emails, local, showLogin }) {
 
   /* 3. Gemini */
   const ai = AI.getAI(app, { backend: new AI.GoogleAIBackend() });
-  window.AI = { parseRecipe: opts => parseRecipe(AI, ai, { ...opts, profile: (cache.settings.get("profile") || {}).text || "" }) };
+  window.AI = { parseRecipe: opts => parseRecipe(AI, ai, { ...opts, profile: (cache.settings.get("profile") || {}).text || "", key: (cache.settings.get("ai") || {}).geminiKey || "" }) };
 
   return {
     mode: "cloud",
@@ -98,31 +98,56 @@ const PROMPT = `Ти допомагаєш родині вести книгу р�
 - tip — 1–2 речення: як зробити страву кориснішою з урахуванням «Про родину» (більше білку чи клітковини, еритритол замість цукру) і як подати дитині.
 - Якщо інгредієнтів або кроків не видно — залиш масив порожнім. Нічого не вигадуй.`;
 
-async function parseRecipe(AI, ai, { link, text, images, profile }) {
-  const parts = [{ text: PROMPT + `\n\nПро родину: ${profile || "—"}\n\nПосилання: ${link || "—"}\nТекст:\n${(text || "—").slice(0, 8000)}` }];
-  for (const f of images || []) parts.push({ inlineData: { mimeType: f.type || "image/jpeg", data: await b64(f) } });
+async function parseRecipe(AI, ai, { link, text, images, profile, key }) {
+  const prompt = PROMPT + `
+
+Про родину: ${profile || "—"}
+
+Посилання: ${link || "—"}
+Текст:
+${(text || "—").slice(0, 8000)}`;
+  const imgs = [];
+  for (const f of images || []) imgs.push({ mime: f.type || "image/jpeg", data: await b64(f) });
   const yt = /youtu\.?be/.test(link || "");
-  if (yt) parts.push({ fileData: { mimeType: "video/mp4", fileUri: link } });
   // інші посилання (Instagram, TikTok) Gemini пробує відкрити сам
-  const tools = link && !yt ? [{ urlContext: {} }] : undefined;
-  const model = AI.getGenerativeModel(ai, { model: "gemini-2.5-flash", ...(tools ? { tools } : {}) });
-  let res;
-  try { res = await model.generateContent({ contents: [{ role: "user", parts }] }); }
-  catch (e) {
+  const useUrl = !!link && !yt;
+  let raw;
+  try {
+    if (key) raw = await viaKey(key, prompt, imgs, yt ? link : "", useUrl);
+    else {
+      const parts = [{ text: prompt }, ...imgs.map(i => ({ inlineData: { mimeType: i.mime, data: i.data } }))];
+      if (yt) parts.push({ fileData: { mimeType: "video/mp4", fileUri: link } });
+      const model = AI.getGenerativeModel(ai, { model: "gemini-2.5-flash", ...(useUrl ? { tools: [{ urlContext: {} }] } : {}) });
+      raw = (await model.generateContent({ contents: [{ role: "user", parts }] })).response.text();
+    }
+  } catch (e) {
     console.error(e);
+    const msg = String(e && e.message);
     const err = new Error("gemini");
-    err.userMessage = /quota|429|RESOURCE_EXHAUSTED/i.test(String(e && e.message)) ? "Ліміт Gemini на сьогодні вичерпано. Спробуй завтра або заповни вручну."
+    err.userMessage = /quota|429|RESOURCE_EXHAUSTED/i.test(msg) ? "Ліміт Gemini на сьогодні вичерпано. Спробуй завтра або заповни вручну."
+      : /genai config|API key|API_KEY|403|401/i.test(msg) ? "Gemini ще не підключений: встав ключ у «Ще → Ключ Gemini»."
       : yt ? "Не вдалося переглянути відео. Встав текст з опису або скриншот." : "Не вдалося розібрати. Додай скриншот або текст з опису.";
     throw err;
   }
-  const raw = res.response.text();
-  const m = raw.match(/\{[\s\S]*\}/);
+  const m = String(raw || "").match(/\{[\s\S]*\}/);
   if (!m) { const err = new Error("no json"); err.userMessage = "Gemini не знайшов рецепт. Додай скриншот або текст з опису."; throw err; }
   const j = JSON.parse(m[0]);
   j.ingredients = (j.ingredients || []).filter(i => i && i.name).map(i => ({ qty: i.qty == null || i.qty === "" ? null : +i.qty, unit: i.qty == null ? "" : String(i.unit || "шт"), name: String(i.name) }));
   if (!GROUPS.includes(j.group)) j.group = "dish";
   if (!j.ingredients.length && !(j.steps || []).length) { const err = new Error("empty"); err.userMessage = "Рецепту в описі не видно. Додай скриншот або текст."; throw err; }
   return j;
+}
+/* прямий виклик Gemini API власним ключем (ключ лежить у закритих даних родини, не в коді) */
+async function viaKey(key, prompt, imgs, ytLink, useUrl) {
+  const parts = [{ text: prompt }, ...imgs.map(i => ({ inline_data: { mime_type: i.mime, data: i.data } }))];
+  if (ytLink) parts.push({ file_data: { file_uri: ytLink } });
+  const body = { contents: [{ role: "user", parts }], ...(useUrl ? { tools: [{ url_context: {} }] } : {}) };
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+    method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body)
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`${r.status} ${(d.error && (d.error.status + " " + d.error.message)) || ""}`);
+  return ((d.candidates || [])[0]?.content?.parts || []).map(p => p.text || "").join("");
 }
 function b64(file) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(file); });

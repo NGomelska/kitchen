@@ -54,7 +54,7 @@
   const S = {
     items: [], recipes: [], slots: [], meta: {}, people: SEED.people,
     tag: "all", rcat: "all", q: "", pantryEdit: false,
-    weekStart: null, day: null, viewP: "me", profile: ""
+    weekStart: null, day: null, viewP: "me", profile: "", aiKey: ""
   };
   let nutCache = new Map();
   const recipeById = () => Object.fromEntries(S.recipes.map(r => [r.id, r]));
@@ -580,6 +580,12 @@
         <p class="hint">Що враховувати, коли Gemini розбирає рецепт: ваші потреби, що їсть дитина. Зберігається тільки в закритих даних родини.</p>
         <textarea id="profileText" rows="5" placeholder="Напр.: мені — більше білку, мало цукру; син їсть кускус, макарони, котлети…">${esc(S.profile)}</textarea>
       </div>
+      ${Store.mode === "cloud" ? `<div class="card stack">
+        <h2>Ключ Gemini</h2>
+        <p class="hint">Потрібен, щоб «Розібрати рецепт» читав скриншоти й посилання. Створи його на aistudio.google.com/apikey (проєкт Kitchen) і встав сюди. Зберігається тільки в закритих даних родини.</p>
+        <input type="password" id="aiKey" placeholder="AIza…" value="${esc(S.aiKey)}" autocomplete="off">
+        <p class="hint" id="aiKeyState">${S.aiKey ? "Ключ збережено ✓" : "Ключа ще немає"}</p>
+      </div>` : ""}
       <div class="card stack">
         <h2>Синхронізація</h2>
         <p class="hint">${Store.mode === "local" ? "Зараз дані зберігаються тільки на цьому пристрої. Наступний крок — Firebase, тоді список побачить і чоловік." : `Дані спільні для всієї родини. Ти увійшла як ${esc((Store.user || {}).email || "")}.`}</p>
@@ -597,6 +603,7 @@
       const list = S.people.map(p => p.id === inp.dataset.pid ? { ...p, [f]: f === "w" ? Math.max(0, +v || 0) : (v === "" ? "" : Math.max(0, +v || 0)) } : p);
       save(() => Store.set("settings", "people", { list }));
     });
+    const ak = $("#aiKey"); if (ak) ak.onchange = async e => { const v = e.target.value.trim(); if (await save(() => Store.set("settings", "ai", { geminiKey: v }))) $("#aiKeyState").textContent = v ? "Ключ збережено ✓" : "Ключ видалено"; };
     $("#profileText").onchange = e => save(() => Store.set("settings", "profile", { text: e.target.value.trim() }));
     const out = $("#outBtn"); if (out) out.onclick = () => Store.signOut();
     $("#expBtn").onclick = () => {
@@ -648,7 +655,8 @@
     Store.sub("settings", d => {
       const p = d.find(x => x.id === "people"); if (p && Array.isArray(p.list)) S.people = p.list;
       S.profile = (d.find(x => x.id === "profile") || {}).text || "";
-      renderMenu(); if (!document.activeElement || document.activeElement.id !== "profileText") renderMore();
+      S.aiKey = (d.find(x => x.id === "ai") || {}).geminiKey || "";
+      renderMenu(); if (!document.activeElement || !["profileText", "aiKey"].includes(document.activeElement.id)) renderMore();
     });
     let t = null; try { t = localStorage.getItem("kitchen-tab"); } catch (e) {}
     go(TABS.includes(t) ? t : "menu");
