@@ -252,3 +252,8 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .mewk i{display:block;background:var(--protein);border-radius:8px 8px 0 0;opacity:.85;max-height:100%}
 .mewk u{position:absolute;left:0;right:0;border-top:1.5px dashed var(--ink);text-decoration:none;margin-bottom:18px}
 .mewk span{position:absolute;bottom:2px;left:0;right:0;text-align:center}
+.mealacts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.mealacts:empty{display:none}
+.eatrow.skip .nm{text-decoration:line-through;color:var(--ink-soft)}
+.eatrow.skip .src{text-decoration:none}
+#meBox .group .meadd{margin-top:8px}

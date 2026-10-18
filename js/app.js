@@ -935,7 +935,8 @@
   /* ---------- старт ---------- */
 
   /* ---------- Я: мій раціон (тільки для Надії, інших не рахуємо) ---------- */
-  const ME = { day: null, est: null, busy: false };
+  const ME = { day: null, est: null, busy: false, rep: null, repEst: null, repNote: "", repBusy: false };
+  const eaten = xs => xs.filter(x => !x.skip);
   const meP = () => person("me") || S.people[0];
   function meItems(date, pid) {
     // усе з'їдене за день: страви з меню (з правками порцій) + додане окремо
@@ -945,7 +946,8 @@
       for (const d of sl ? sl.dishes || [] : []) {
         if (!(d.who || []).includes(pid)) continue;
         const r = recipe(d.rid); if (!r) continue;
-        const f = adj[`${m}_${d.rid}`] ?? 1; if (!f) continue;
+        const f = adj[`${m}_${d.rid}`] ?? 1;
+        if (!f) { out.push({ meal: m, t: r.title, rid: r.id, skip: true, k: 0, p: 0, f: 0, c: 0 }); continue; }
         const x = nutOf(r);
         const n = scaleN(x, w * f); out.push({ meal: m, t: r.title, rid: r.id, por: f, g: (x.g || 0) * w * f, k: n.k, p: n.p, f: n.f, c: n.c });
       }
@@ -963,7 +965,7 @@
     const box = $("#meBox"); if (!box || !S.people.length) return;
     const p = meP(), tk = todayKey(); ME.day = ME.day || tk;
     const date = ME.day, d = toDate(date), items = meItems(date, p.id);
-    const day = items.reduce((a, x) => Nutrition.add(a, x), Nutrition.zero());
+    const day = eaten(items).reduce((a, x) => Nutrition.add(a, x), Nutrition.zero());
     const goalK = +p.goalK || 0, goalP = +p.goalP || 0;
     const ring = (v, goal, lbl, cls) => {
       const pct = goal ? Math.min(1, v / goal) : 0, R = 30, C = 2 * Math.PI * R;
@@ -971,7 +973,7 @@
     };
     let h = `<div class="medate"><button data-me="prev" aria-label="Попередній день">‹</button><b>${date === tk ? "Сьогодні" : WDF[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]}</b><button data-me="next" aria-label="Наступний день"${date >= tk ? " disabled" : ""}>›</button></div>
       <div class="card merings">${ring(day.k, goalK, "ккал", "--ink")}${ring(day.p, goalP, "білок, г", "--protein")}
-        <div class="mesm"><div><span>Жири</span><b>${r0(day.f)} г</b></div><div><span>Вуглеводи</span><b>${r0(day.c)} г</b></div><div><span>Вага їжі</span><b>${r0(items.reduce((a, x) => a + (+x.g || 0), 0))} г</b></div></div></div>
+        <div class="mesm"><div><span>Жири</span><b>${r0(day.f)} г</b></div><div><span>Вуглеводи</span><b>${r0(day.c)} г</b></div><div><span>Вага їжі</span><b>${r0(eaten(items).reduce((a, x) => a + (+x.g || 0), 0))} г</b></div></div></div>
       ${!goalK || !goalP ? `<p class="hint">Цілі на день (ккал і білок) задаються в «Ще» → люди.</p>` : goalP > day.p && date === tk ? `<p class="hint">До цілі по білку ще <b>${r0(goalP - day.p)} г</b>.</p>` : ""}
       <div class="card stack meadd">
         <h3>Що з'їла поза меню?</h3>
@@ -984,29 +986,79 @@
         ${((S.meta.favs || {}).list || []).length ? `<div class="chips">${S.meta.favs.list.slice(0, 12).map((f, i) => `<button class="chip small" data-me="fav" data-i="${i}">+ ${esc(f.t)}</button>`).join("")}</div>` : ""}
       </div>`;
     for (const [m, label] of MEALS) {
-      const xs = items.filter(x => x.meal === m); if (!xs.length) continue;
-      const n = xs.reduce((a, x) => Nutrition.add(a, x), Nutrition.zero());
-      h += `<div class="group"><h3>${label} <small>${r0(n.k)} ккал · Б ${r0(n.p)}</small></h3><div class="list">${xs.map(x => `<div class="row eatrow"><span class="nm">${esc(x.t)}${x.por && x.por !== 1 ? ` ×${x.por}` : ""}<span class="src">${x.g ? `${r0(x.g)} г · ` : ""}${r0(x.k)} ккал · Б ${r0(x.p)} · Ж ${r0(x.f)} · У ${r0(x.c)}</span></span>${x.extra ? `<button class="x" data-me="del" data-id="${esc(x.id)}" aria-label="Прибрати">×</button>` : ""}</div>`).join("")}</div></div>`;
+      const xs = items.filter(x => x.meal === m), menuXs = xs.filter(x => !x.extra);
+      if (!xs.length && ME.rep !== m) continue;
+      const n = eaten(xs).reduce((a, x) => Nutrition.add(a, x), Nutrition.zero());
+      const skipped = menuXs.length && menuXs.every(x => x.skip);
+      h += `<div class="group"><h3>${label} <small>${r0(n.k)} ккал · Б ${r0(n.p)}</small></h3><div class="list">${xs.map(x => x.skip
+        ? `<div class="row eatrow skip"><span class="nm">${esc(x.t)}<span class="src">не їла</span></span></div>`
+        : `<div class="row eatrow"><span class="nm">${esc(x.t)}${x.por && x.por !== 1 ? ` ×${x.por}` : ""}<span class="src">${x.g ? `${r0(x.g)} г · ` : ""}${r0(x.k)} ккал · Б ${r0(x.p)} · Ж ${r0(x.f)} · У ${r0(x.c)}</span></span>${x.extra ? `<button class="x" data-me="del" data-id="${esc(x.id)}" aria-label="Прибрати">×</button>` : ""}</div>`).join("")}</div>
+        <div class="mealacts">${menuXs.length ? (skipped
+          ? `<button class="chip small" data-me="restore" data-m="${m}">↺ Повернути з меню</button>`
+          : `<button class="chip small" data-me="rep" data-m="${m}">Їла інше</button><button class="chip small" data-me="skip" data-m="${m}">Не їла</button>`) : ""}</div>`;
+      if (ME.rep === m) h += `<div class="card stack meadd">
+          <h3>Що їла замість «${label.toLowerCase()}»?</h3>
+          <div class="meq"><input type="text" id="repT" placeholder="напр.: бургер з картоплею з доставки, з'їла половину" value="${esc(ME.repText || "")}"><label class="btn ghost small mecam" aria-label="Фото">📷<input type="file" id="repImg" accept="image/*" multiple hidden></label></div>
+          <p class="hint" id="repFiles"></p>
+          <div class="pbtns"><button class="btn green" data-me="repEst"${ME.repBusy ? " disabled" : ""}>${ME.repBusy ? "Рахую…" : "Порахувати"}</button><button class="btn ghost" data-me="repCancel">Скасувати</button></div>
+          ${ME.repNote ? `<p class="hint">${esc(ME.repNote)}</p>` : ""}
+          ${ME.repEst ? `<div class="meest"><div><b>${esc(ME.repEst.title)}</b><span class="src">${ME.repEst.grams ? `${r0(ME.repEst.grams)} г · ` : ""}${r0(ME.repEst.k)} ккал · Б ${r0(ME.repEst.p)} · Ж ${r0(ME.repEst.f)} · У ${r0(ME.repEst.c)}</span></div>
+            <button class="btn" data-me="repSave">Замінити ${label.toLowerCase()}</button></div>` : ""}
+        </div>`;
+      h += `</div>`;
     }
     if (!items.length) h += `<p class="hint">За цей день ще нічого. Страви з меню, де ти позначена, рахуються автоматично.</p>`;
     h += `<button class="btn ghost wide" data-me="full">Змінити порції з меню →</button>`;
     // тиждень
     const days = []; for (let i = 6; i >= 0; i--) days.push(addDays(tk, -i));
-    const ns = days.map(x => meItems(x, p.id).reduce((a, y) => Nutrition.add(a, y), Nutrition.zero()));
+    const ns = days.map(x => eaten(meItems(x, p.id)).reduce((a, y) => Nutrition.add(a, y), Nutrition.zero()));
     const mx = Math.max(goalK || 0, ...ns.map(n => n.k), 1);
     const filled = ns.filter(n => n.k > 0);
     h += `<div class="card"><h3 style="margin:0 0 8px">Останні 7 днів</h3><div class="mewk">${days.map((x, i) => `<button data-me="day" data-d="${x}" class="${x === date ? "on" : ""}"><i style="height:${Math.round(ns[i].k / mx * 100)}%"></i>${goalK ? `<u style="bottom:${Math.round(goalK / mx * 100)}%"></u>` : ""}<span>${WD[toDate(x).getDay()]}</span></button>`).join("")}</div>
       ${filled.length ? `<p class="hint">У середньому: <b>${r0(filled.reduce((a, n) => a + n.k, 0) / filled.length)} ккал</b> · білок ${r0(filled.reduce((a, n) => a + n.p, 0) / filled.length)} г${goalP ? ` (ціль ${goalP})` : ""}</p>` : ""}</div>`;
     box.innerHTML = h;
   }
+  $("#meBox").addEventListener("change", ev => {
+    if (ev.target.id === "repImg" || ev.target.id === "meImg") {
+      const n = ev.target.files.length, lbl = ev.target.closest("label");
+      if (lbl) lbl.firstChild.textContent = n ? `📷${n}` : "📷";
+    }
+  });
   $("#meBox").addEventListener("click", async ev => {
     const b = ev.target.closest("[data-me]"); if (!b) return;
     const act = b.dataset.me, p = meP(), tk = todayKey();
     ME.text = ($("#meT") || {}).value || "";
+    if ($("#repT")) ME.repText = $("#repT").value;
     if (act === "prev") { ME.day = addDays(ME.day, -1); ME.est = null; renderMe(); return; }
     if (act === "next") { if (ME.day < tk) ME.day = addDays(ME.day, 1); ME.est = null; renderMe(); return; }
     if (act === "day") { ME.day = b.dataset.d; renderMe(); return; }
     if (act === "full") { openEat(ME.day, p.id); return; }
+    const mealRids = m => { const sl = slotOf(ME.day, m); return (sl ? sl.dishes || [] : []).filter(d => (d.who || []).includes(p.id)).map(d => d.rid); };
+    if (act === "skip") { const m = b.dataset.m; meWrite(ME.day, p.id, d => { for (const rid of mealRids(m)) d.adj[`${m}_${rid}`] = 0; }); return; }
+    if (act === "restore") { const m = b.dataset.m; meWrite(ME.day, p.id, d => { for (const rid of mealRids(m)) delete d.adj[`${m}_${rid}`]; }); return; }
+    if (act === "rep") { ME.rep = b.dataset.m; ME.repEst = null; ME.repNote = ""; ME.repText = ""; renderMe(); $("#repT")?.focus(); return; }
+    if (act === "repCancel") { ME.rep = null; ME.repEst = null; renderMe(); return; }
+    if (act === "repEst") {
+      ME.repText = ($("#repT") || {}).value || "";
+      const text = ME.repText.trim(), images = [...($("#repImg").files || [])].slice(0, 3);
+      if (!text && !images.length) { toast("Додай фото або напиши, що їла."); return; }
+      if (!window.AI || !window.AI.estimateFood) { ME.repNote = "Gemini ще не підключений (Ще → Ключ Gemini)."; renderMe(); return; }
+      ME.repBusy = true; ME.repEst = null; ME.repNote = ""; renderMe();
+      try {
+        const j = await window.AI.estimateFood({ text, images, grams: null });
+        ME.repEst = { title: j.title || text, grams: j.grams, k: j.k, p: j.p, f: j.f, c: j.c };
+        ME.repNote = j.note ? `Gemini: ${j.note}` : "";
+      } catch (e) { console.error(e); ME.repNote = e && e.userMessage || "Не вийшло порахувати. Спробуй описати словами."; }
+      ME.repBusy = false; renderMe(); return;
+    }
+    if (act === "repSave" && ME.repEst) {
+      const m = ME.rep, e = ME.repEst;
+      const item = { id: Date.now().toString(36), t: e.title, meal: m, g: e.grams || null, k: r0(e.k), p: r0(e.p), f: r0(e.f), c: r0(e.c), note: (ME.repText || "").trim() || undefined };
+      if (!item.note) delete item.note;
+      const ok = await meWrite(ME.day, p.id, d => { for (const rid of mealRids(m)) d.adj[`${m}_${rid}`] = 0; d.extra.push(item); });
+      if (ok) { ME.rep = null; ME.repEst = null; ME.repNote = ""; ME.repText = ""; toast(`Замінила: ${item.t}`); renderMe(); }
+      return;
+    }
     if (act === "del") { meWrite(ME.day, p.id, d => { d.extra = d.extra.filter(e => e.id !== b.dataset.id); }); return; }
     if (act === "fav") {
       const f = ((S.meta.favs || {}).list || [])[+b.dataset.i]; if (!f) return;
@@ -1054,7 +1106,7 @@
       }
       renderSub(); renderMenu(); renderPrep();
       if (EAT && !$("#sheet").hidden && !EAT.form) drawEat();
-      if (!ME.busy && document.activeElement?.id !== "meT") renderMe();
+      if (!ME.busy && !ME.repBusy && !["meT", "repT"].includes(document.activeElement?.id) && !ME.rep) renderMe();
     });
     Store.sub("settings", d => {
       const p = d.find(x => x.id === "people"); if (p && Array.isArray(p.list)) S.people = p.list;
