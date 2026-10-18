@@ -186,8 +186,8 @@ ol.steps{padding-left:1.3rem;margin:0;display:grid;gap:8px}
 
 /* tabs */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1.5px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);z-index:10}
-nav.tabs .in{display:grid;grid-template-columns:repeat(5,1fr);width:100%;max-width:560px}
-nav.tabs button{border:0;background:transparent;padding:8px 4px 10px;min-height:58px;font-weight:700;color:var(--ink-soft);display:flex;flex-direction:column;align-items:center;gap:1px;font-size:.7rem;position:relative;min-width:0}
+nav.tabs .in{display:grid;grid-template-columns:repeat(6,1fr);width:100%;max-width:560px}
+nav.tabs button{border:0;background:transparent;padding:8px 4px 10px;min-height:58px;font-weight:700;color:var(--ink-soft);display:flex;flex-direction:column;align-items:center;gap:1px;font-size:.64rem;position:relative;min-width:0}
 nav.tabs button svg{display:block}
 nav.tabs button .c{position:absolute;top:4px;left:calc(50% + 8px);font-size:.66rem;font-weight:800;background:var(--protein);color:#fff;border-radius:99px;padding:0 5px;min-width:16px;line-height:16px}
 nav.tabs button .c:empty{display:none}
@@ -221,3 +221,34 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .eatrow .fx .chip{min-width:34px;justify-content:center}
 .eatrow .src{display:block;color:var(--ink-soft);font-size:.78rem}
 .totals [data-eat]{align-self:flex-start}
+
+/* Я: мій раціон */
+.medate{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 10px}
+.medate b{font-size:1.05rem}
+.medate button{border:1.5px solid var(--line);background:var(--card);border-radius:12px;min-width:44px;min-height:40px;font-size:1.2rem;color:var(--ink)}
+.medate button:disabled{opacity:.35}
+.merings{display:grid;grid-template-columns:auto auto 1fr;gap:10px;align-items:center}
+.ring{position:relative;display:grid;justify-items:center;width:84px}
+.ring b{position:absolute;top:24px;font-size:1.05rem;font-variant-numeric:tabular-nums}
+.ring span{font-size:.68rem;color:var(--ink-soft);font-weight:700;text-align:center}
+.mesm{display:grid;gap:4px}
+.mesm div{display:flex;justify-content:space-between;gap:6px;background:var(--paper-2);border-radius:10px;padding:4px 8px;font-size:.82rem}
+.mesm span{color:var(--ink-soft)}
+.meadd{margin-top:12px;gap:10px}
+.meadd h3{margin:0}
+.meq{display:flex;gap:8px}
+.meq input{flex:1;min-width:0}
+.mecam{display:inline-flex;align-items:center;justify-content:center;min-width:48px;cursor:pointer}
+.meest{background:var(--paper-2);border-radius:12px;padding:10px;display:grid;gap:8px}
+.meest .src{display:block;font-size:.8rem;color:var(--ink-soft)}
+.meest select{flex:1;min-width:0}
+.group h3 small{font-weight:600;color:var(--ink-soft);font-size:.75rem;margin-left:6px}
+#meBox .group{margin-top:12px}
+#meBox > .btn.wide{margin-top:12px}
+#meBox > .card:last-child{margin-top:12px}
+.mewk{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:110px}
+.mewk button{position:relative;border:0;background:var(--paper-2);border-radius:10px;display:flex;flex-direction:column;justify-content:flex-end;padding:0 0 18px;overflow:hidden;color:var(--ink-soft);font-size:.68rem;font-weight:700}
+.mewk button.on{outline:2px solid var(--ink)}
+.mewk i{display:block;background:var(--protein);border-radius:8px 8px 0 0;opacity:.85;max-height:100%}
+.mewk u{position:absolute;left:0;right:0;border-top:1.5px dashed var(--ink);text-decoration:none;margin-bottom:18px}
+.mewk span{position:absolute;bottom:2px;left:0;right:0;text-align:center}

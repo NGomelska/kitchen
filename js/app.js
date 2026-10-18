@@ -30,7 +30,7 @@
   const GROUPS = { protein: "Білок", base: "Основа", veg: "Овочі", sauce: "Соус і зверху", sweet: "Десерт", dish: "Ціла страва" };
   const GKEYS = Object.keys(GROUPS);
   const MEALS = [["b", "Сніданок"], ["l", "Обід"], ["d", "Вечеря"], ["x", "Перекус / десерт"]];
-  const TABS = ["buy", "prep", "menu", "rec", "more"];
+  const TABS = ["buy", "prep", "menu", "me", "rec", "more"];
   /* підготовка: коли робити */
   const MEAL_T = { b: "08:00", l: "13:00", d: "18:30", x: "19:30" };
   const MEAL_GEN = { b: "сніданком", l: "обідом", d: "вечерею", x: "перекусом" };
@@ -933,12 +933,117 @@
   }
 
   /* ---------- старт ---------- */
+
+  /* ---------- Я: мій раціон (тільки для Надії, інших не рахуємо) ---------- */
+  const ME = { day: null, est: null, busy: false };
+  const meP = () => person("me") || S.people[0];
+  function meItems(date, pid) {
+    // усе з'їдене за день: страви з меню (з правками порцій) + додане окремо
+    const out = [], doc = eatDoc(date, pid), adj = doc.adj || {}, w = +(person(pid) || {}).w || 1;
+    for (const [m] of MEALS) {
+      const sl = slotOf(date, m);
+      for (const d of sl ? sl.dishes || [] : []) {
+        if (!(d.who || []).includes(pid)) continue;
+        const r = recipe(d.rid); if (!r) continue;
+        const f = adj[`${m}_${d.rid}`] ?? 1; if (!f) continue;
+        const x = nutOf(r);
+        const n = scaleN(x, w * f); out.push({ meal: m, t: r.title, rid: r.id, por: f, g: (x.g || 0) * w * f, k: n.k, p: n.p, f: n.f, c: n.c });
+      }
+      for (const e of doc.extra || []) if (e.meal === m) out.push({ ...e, extra: true });
+    }
+    return out;
+  }
+  async function meWrite(date, pid, fn) {
+    const id = `eat_${date}_${pid}`, doc = structuredClone(S.meta[id] || {}); delete doc.id;
+    doc.adj = doc.adj || {}; doc.extra = doc.extra || [];
+    fn(doc);
+    return save(() => Store.set("meta", id, doc));
+  }
+  function renderMe() {
+    const box = $("#meBox"); if (!box || !S.people.length) return;
+    const p = meP(), tk = todayKey(); ME.day = ME.day || tk;
+    const date = ME.day, d = toDate(date), items = meItems(date, p.id);
+    const day = items.reduce((a, x) => Nutrition.add(a, x), Nutrition.zero());
+    const goalK = +p.goalK || 0, goalP = +p.goalP || 0;
+    const ring = (v, goal, lbl, cls) => {
+      const pct = goal ? Math.min(1, v / goal) : 0, R = 30, C = 2 * Math.PI * R;
+      return `<div class="ring"><svg viewBox="0 0 72 72" width="72" height="72" aria-hidden="true"><circle cx="36" cy="36" r="${R}" fill="none" stroke="var(--paper-2)" stroke-width="8"/>${goal ? `<circle cx="36" cy="36" r="${R}" fill="none" stroke="var(${cls})" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C * pct} ${C}" transform="rotate(-90 36 36)"/>` : ""}</svg><b>${r0(v)}</b><span>${lbl}${goal ? ` з ${goal}` : ""}</span></div>`;
+    };
+    let h = `<div class="medate"><button data-me="prev" aria-label="Попередній день">‹</button><b>${date === tk ? "Сьогодні" : WDF[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]}</b><button data-me="next" aria-label="Наступний день"${date >= tk ? " disabled" : ""}>›</button></div>
+      <div class="card merings">${ring(day.k, goalK, "ккал", "--ink")}${ring(day.p, goalP, "білок, г", "--protein")}
+        <div class="mesm"><div><span>Жири</span><b>${r0(day.f)} г</b></div><div><span>Вуглеводи</span><b>${r0(day.c)} г</b></div><div><span>Вага їжі</span><b>${r0(items.reduce((a, x) => a + (+x.g || 0), 0))} г</b></div></div></div>
+      ${!goalK || !goalP ? `<p class="hint">Цілі на день (ккал і білок) задаються в «Ще» → люди.</p>` : goalP > day.p && date === tk ? `<p class="hint">До цілі по білку ще <b>${r0(goalP - day.p)} г</b>.</p>` : ""}
+      <div class="card stack meadd">
+        <h3>Що з'їла поза меню?</h3>
+        <div class="meq"><input type="text" id="meT" placeholder="напр.: засолені баклажани 100 г" value="${esc(ME.text || "")}"><label class="btn ghost small mecam" aria-label="Фото">📷<input type="file" id="meImg" accept="image/*" multiple hidden></label></div>
+        <div class="pbtns"><button class="btn green" data-me="est"${ME.busy ? " disabled" : ""}>${ME.busy ? "Рахую…" : "Порахувати"}</button><button class="btn ghost" data-me="full">Вручну / з рецепта</button></div>
+        <p class="hint" id="meNote">${esc(ME.note || "Gemini оцінить калорії й БЖУ. Можна сфотографувати етикетку, тарілку чи замовлення з доставки.")}</p>
+        ${ME.est ? `<div class="meest"><div><b>${esc(ME.est.title)}</b><span class="src">${ME.est.grams ? `${r0(ME.est.grams)} г · ` : ""}${r0(ME.est.k)} ккал · Б ${r0(ME.est.p)} · Ж ${r0(ME.est.f)} · У ${r0(ME.est.c)}</span></div>
+          <div class="pbtns"><select id="meM">${MEALS.map(([m, l]) => `<option value="${m}"${m === nowMeal() ? " selected" : ""}>${l}</option>`).join("")}</select><button class="btn" data-me="add">Додати</button></div>
+          <label class="chk"><input type="checkbox" id="meFav"> зберегти в «часті»</label></div>` : ""}
+        ${((S.meta.favs || {}).list || []).length ? `<div class="chips">${S.meta.favs.list.slice(0, 12).map((f, i) => `<button class="chip small" data-me="fav" data-i="${i}">+ ${esc(f.t)}</button>`).join("")}</div>` : ""}
+      </div>`;
+    for (const [m, label] of MEALS) {
+      const xs = items.filter(x => x.meal === m); if (!xs.length) continue;
+      const n = xs.reduce((a, x) => Nutrition.add(a, x), Nutrition.zero());
+      h += `<div class="group"><h3>${label} <small>${r0(n.k)} ккал · Б ${r0(n.p)}</small></h3><div class="list">${xs.map(x => `<div class="row eatrow"><span class="nm">${esc(x.t)}${x.por && x.por !== 1 ? ` ×${x.por}` : ""}<span class="src">${x.g ? `${r0(x.g)} г · ` : ""}${r0(x.k)} ккал · Б ${r0(x.p)} · Ж ${r0(x.f)} · У ${r0(x.c)}</span></span>${x.extra ? `<button class="x" data-me="del" data-id="${esc(x.id)}" aria-label="Прибрати">×</button>` : ""}</div>`).join("")}</div></div>`;
+    }
+    if (!items.length) h += `<p class="hint">За цей день ще нічого. Страви з меню, де ти позначена, рахуються автоматично.</p>`;
+    h += `<button class="btn ghost wide" data-me="full">Змінити порції з меню →</button>`;
+    // тиждень
+    const days = []; for (let i = 6; i >= 0; i--) days.push(addDays(tk, -i));
+    const ns = days.map(x => meItems(x, p.id).reduce((a, y) => Nutrition.add(a, y), Nutrition.zero()));
+    const mx = Math.max(goalK || 0, ...ns.map(n => n.k), 1);
+    const filled = ns.filter(n => n.k > 0);
+    h += `<div class="card"><h3 style="margin:0 0 8px">Останні 7 днів</h3><div class="mewk">${days.map((x, i) => `<button data-me="day" data-d="${x}" class="${x === date ? "on" : ""}"><i style="height:${Math.round(ns[i].k / mx * 100)}%"></i>${goalK ? `<u style="bottom:${Math.round(goalK / mx * 100)}%"></u>` : ""}<span>${WD[toDate(x).getDay()]}</span></button>`).join("")}</div>
+      ${filled.length ? `<p class="hint">У середньому: <b>${r0(filled.reduce((a, n) => a + n.k, 0) / filled.length)} ккал</b> · білок ${r0(filled.reduce((a, n) => a + n.p, 0) / filled.length)} г${goalP ? ` (ціль ${goalP})` : ""}</p>` : ""}</div>`;
+    box.innerHTML = h;
+  }
+  $("#meBox").addEventListener("click", async ev => {
+    const b = ev.target.closest("[data-me]"); if (!b) return;
+    const act = b.dataset.me, p = meP(), tk = todayKey();
+    ME.text = ($("#meT") || {}).value || "";
+    if (act === "prev") { ME.day = addDays(ME.day, -1); ME.est = null; renderMe(); return; }
+    if (act === "next") { if (ME.day < tk) ME.day = addDays(ME.day, 1); ME.est = null; renderMe(); return; }
+    if (act === "day") { ME.day = b.dataset.d; renderMe(); return; }
+    if (act === "full") { openEat(ME.day, p.id); return; }
+    if (act === "del") { meWrite(ME.day, p.id, d => { d.extra = d.extra.filter(e => e.id !== b.dataset.id); }); return; }
+    if (act === "fav") {
+      const f = ((S.meta.favs || {}).list || [])[+b.dataset.i]; if (!f) return;
+      await meWrite(ME.day, p.id, d => { d.extra.push({ id: Date.now().toString(36), t: f.t, meal: nowMeal(), g: f.g || null, k: f.k, p: f.p, f: f.f, c: f.c }); });
+      toast(`Додала: ${f.t}`); return;
+    }
+    if (act === "est") {
+      const text = ME.text.trim(), images = [...($("#meImg").files || [])].slice(0, 3);
+      if (!text && !images.length) { toast("Напиши, що з'їла, або додай фото."); return; }
+      if (!window.AI || !window.AI.estimateFood) { ME.note = "Gemini ще не підключений (Ще → Ключ Gemini). Можна вписати вручну."; renderMe(); return; }
+      ME.busy = true; ME.est = null; ME.note = ""; renderMe();
+      try {
+        const j = await window.AI.estimateFood({ text, images, grams: null });
+        ME.est = { title: j.title || text, grams: j.grams, k: j.k, p: j.p, f: j.f, c: j.c };
+        ME.note = j.note ? `Gemini: ${j.note}` : "";
+      } catch (e) { console.error(e); ME.note = e && e.userMessage || "Не вийшло порахувати. Натисни «Вручну» і впиши цифри."; }
+      ME.busy = false; renderMe(); return;
+    }
+    if (act === "add" && ME.est) {
+      const e = ME.est, meal = $("#meM").value, fav = $("#meFav").checked;
+      const item = { id: Date.now().toString(36), t: e.title, meal, g: e.grams || null, k: r0(e.k), p: r0(e.p), f: r0(e.f), c: r0(e.c) };
+      const ok = await meWrite(ME.day, p.id, d => { d.extra.push(item); });
+      if (ok && fav) {
+        const list = ((S.meta.favs || {}).list || []).filter(f => f.t !== item.t);
+        list.unshift({ t: item.t, g: item.g, k: item.k, p: item.p, f: item.f, c: item.c });
+        await save(() => Store.set("meta", "favs", { list: list.slice(0, 30) }));
+      }
+      if (ok) { ME.est = null; ME.text = ""; ME.note = ""; toast(`Додала: ${item.t}`); renderMe(); }
+    }
+  });
+
   renderTags();
   (async () => {
     await Store.init();
     Store.sub("items", d => { S.items = d; renderBuy(); });
-    Store.sub("recipes", d => { S.recipes = d; nutCache = new Map(); renderTags(); renderRecipes(); renderMenu(); });
-    Store.sub("slots", d => { S.slots = d; renderMenu(); renderPrep(); });
+    Store.sub("recipes", d => { S.recipes = d; nutCache = new Map(); renderTags(); renderRecipes(); renderMenu(); renderMe(); });
+    Store.sub("slots", d => { S.slots = d; renderMenu(); renderPrep(); renderMe(); });
     Store.sub("meta", d => {
       S.meta = Object.fromEntries(d.map(x => [x.id, x]));
       if (!S.weekStart) {
@@ -949,11 +1054,13 @@
       }
       renderSub(); renderMenu(); renderPrep();
       if (EAT && !$("#sheet").hidden && !EAT.form) drawEat();
+      if (!ME.busy && document.activeElement?.id !== "meT") renderMe();
     });
     Store.sub("settings", d => {
       const p = d.find(x => x.id === "people"); if (p && Array.isArray(p.list)) S.people = p.list;
       S.profile = (d.find(x => x.id === "profile") || {}).text || "";
       S.aiKey = (d.find(x => x.id === "ai") || {}).geminiKey || "";
+      if (!ME.busy) renderMe();
       renderMenu(); if (!document.activeElement || !["profileText", "aiKey"].includes(document.activeElement.id)) renderMore();
     });
     let t = null; try { t = localStorage.getItem("kitchen-tab"); } catch (e) {}
