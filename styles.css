@@ -265,3 +265,8 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .poredit .meq{align-items:center}
 .poredit input{max-width:110px}
 .poredit .hint{flex:1;font-size:.75rem}
+.leftbar{display:grid;gap:8px;padding:12px}
+.leftbar .row2{display:flex;gap:8px}
+.leftbar select{flex:1;min-width:0}
+.heart{font-size:1.15rem;min-width:44px}
+.heart.on{color:var(--protein)}

@@ -280,7 +280,7 @@
   });
   $("#meals").addEventListener("click", ev => {
     // тап по назві страви — відкрити рецепт; по решті миски — змінити миску
-    const c = ev.target.closest("[data-rid]"); if (c) { openRecipe(c.dataset.rid); return; }
+    const c = ev.target.closest("[data-rid]"); if (c) { const m = c.closest("[data-meal]"); openRecipe(c.dataset.rid, null, { date: S.day, meal: m && m.dataset.meal }); return; }
     const b = ev.target.closest("[data-meal]"); if (b) openPicker(S.day, b.dataset.meal);
   });
 
@@ -573,11 +573,12 @@
 
   /* ---------- рецепти ---------- */
   function renderTags() {
-    const full = S.recipes.filter(r => !r.simple && (S.src === "all" || (S.src === "mine" ? !r.src : (r.src || "").startsWith(S.src)))), cnt = c => full.filter(r => catOf(r) === c).length;
+    const full = S.recipes.filter(r => !r.simple && (S.src === "all" || (S.src === "try" ? tryList().includes(r.id) : S.src === "mine" ? !r.src : (r.src || "").startsWith(S.src)))), cnt = c => full.filter(r => catOf(r) === c).length;
     const cats = RCATS.filter(c => cnt(c));
     $("#recCats").innerHTML = [["all", `Усі ${full.length}`], ...cats.map(c => [c, `${c} ${cnt(c)}`]), ["simple", "Прості страви"]].map(([v, l]) => `<button class="gbtn${S.rcat === v ? " on" : ""}" data-rcat="${esc(v)}">${esc(l)}</button>`).join("");
     const books = [...new Set(S.recipes.filter(r => r.src).map(r => r.src.split(" · ")[0]))];
-    $("#recSrc").innerHTML = books.length ? [["all", "Усі джерела"], ["mine", "Мої"], ...books.map(b => [b, "📖 " + b])].map(([v, l]) => `<button class="chip small${S.src === v ? " on" : ""}" data-src="${esc(v)}">${esc(l)}</button>`).join("") : "";
+    const tl = tryList().filter(id => recipe(id));
+    $("#recSrc").innerHTML = books.length || tl.length ? [["all", "Усі джерела"], ...(tl.length ? [["try", `❤ Хочу спробувати ${tl.length}`]] : []), ["mine", "Мої"], ...books.map(b => [b, "📖 " + b])].map(([v, l]) => `<button class="chip small${S.src === v ? " on" : ""}" data-src="${esc(v)}">${esc(l)}</button>`).join("") : "";
     $("#recTags").innerHTML = [["all", "Для всіх"], ...TAGS.map(t => [t, t])].map(([v, l]) => `<button class="chip small${S.tag === v ? " on" : ""}" data-tag="${esc(v)}">${esc(l)}</button>`).join("");
   }
   $("#recCats").onclick = ev => { const b = ev.target.closest("[data-rcat]"); if (!b) return; S.rcat = b.dataset.rcat; renderTags(); renderRecipes(); };
@@ -589,14 +590,14 @@
     if (S.rcat === "simple") arr = arr.filter(r => r.simple);
     else { arr = arr.filter(r => !r.simple); if (S.rcat !== "all") arr = arr.filter(r => catOf(r) === S.rcat); }
     if (S.tag !== "all") arr = arr.filter(r => (r.tags || []).includes(S.tag));
-    if (S.src === "mine") arr = arr.filter(r => !r.src); else if (S.src !== "all") arr = arr.filter(r => (r.src || "").startsWith(S.src));
+    if (S.src === "try") arr = arr.filter(r => tryList().includes(r.id)); else if (S.src === "mine") arr = arr.filter(r => !r.src); else if (S.src !== "all") arr = arr.filter(r => (r.src || "").startsWith(S.src));
     if (S.q) arr = arr.filter(r => (r.title + " " + (r.ingredients || []).map(i => i.name).join(" ")).toLowerCase().includes(S.q));
     const el = $("#recList");
     if (!S.recipes.length) { el.innerHTML = `<p class="empty">Поки порожньо. Натисни «+ Рецепт».</p>`; return; }
     if (!arr.length) { el.innerHTML = `<p class="empty">Нічого не знайшла. Спробуй інше слово чи тег.</p>`; return; }
     const card = r => {
       const n = nutOf(r);
-      return `<button class="rec" data-id="${esc(r.id)}"><span class="th">${Art.bowl(r, catOf(r), 60)}</span><span class="meta"><span class="t">${esc(r.title)}</span><span class="nut">${n.per100 ? `на 100 г: ${Nutrition.line(n.per100)}` : n.k ? `на порцію: ${Nutrition.line(n)}` : ""}</span>${r.time && r.time.total ? `<span class="nut">⏱ ${fmtMin(r.time.total)}${r.time.active && r.time.active < r.time.total ? ` · біля плити ${fmtMin(r.time.active)}` : ""}</span>` : ""}<span class="tags">${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</span></span></button>`;
+      return `<button class="rec" data-id="${esc(r.id)}"><span class="th">${Art.bowl(r, catOf(r), 60)}</span><span class="meta"><span class="t">${tryList().includes(r.id) ? "❤ " : ""}${esc(r.title)}</span><span class="nut">${n.per100 ? `на 100 г: ${Nutrition.line(n.per100)}` : n.k ? `на порцію: ${Nutrition.line(n)}` : ""}</span>${r.time && r.time.total ? `<span class="nut">⏱ ${fmtMin(r.time.total)}${r.time.active && r.time.active < r.time.total ? ` · біля плити ${fmtMin(r.time.active)}` : ""}</span>` : ""}<span class="tags">${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</span></span></button>`;
     };
     // «Усі» — розкладено по категоріях з заголовками
     if (S.rcat === "all" && !S.q) {
@@ -616,15 +617,40 @@
     if (u === "л") return [q * 1000, "мл"];
     return [q, u];
   }
-  function openRecipe(id, por) {
+  /* залишки: наступні обіди/вечері після цього прийому їжі */
+  const MORD = { b: 0, l: 1, d: 2, x: 3 };
+  const after = (d1, m1, d2, m2) => d2 > d1 || (d2 === d1 && MORD[m2] > MORD[m1]);
+  function nextSlots(date, meal, n) {
+    const out = [];
+    for (let i = 0; i < 7 && out.length < n; i++) {
+      const d = addDays(date, i);
+      for (const m of ["l", "d"]) if (after(date, meal, d, m) && out.length < n) out.push([d, m]);
+    }
+    return out;
+  }
+  const slotLabel = (d, m) => { const tk = todayKey(); const day = d === tk ? "сьогодні" : d === addDays(tk, 1) ? "завтра" : WDF[toDate(d).getDay()]; return `${day} ${m === "l" ? "обід" : "вечеря"}`; };
+  function leftBar(r, ctx) {
+    const sl = slotOf(ctx.date, ctx.meal), dish = sl && (sl.dishes || []).find(d => d.rid === r.id); if (!dish) return "";
+    const later = S.slots.filter(s => after(ctx.date, ctx.meal, s.date, s.meal) && (s.dishes || []).some(d => d.rid === r.id && d.left));
+    const opts = nextSlots(ctx.date, ctx.meal, 4);
+    return `<div class="card leftbar">
+      <div class="row2"><select id="leftTo">${opts.map(([d, m]) => `<option value="${d}_${m}">${slotLabel(d, m)}</option>`).join("")}</select><button class="btn small" data-act="leftAdd">↻ Лишилось</button></div>
+      ${later.length ? `<p class="hint">Залишки вже стоять: ${later.map(s => slotLabel(s.date, s.meal)).join(", ")}.</p><button class="btn ghost small" data-act="leftDone">✓ Доїли — прибрати залишки</button>` : `<p class="hint">Лишилось? Додам на вибраний обід чи вечерю тим самим людям.</p>`}
+    </div>`;
+  }
+  const tryList = () => ((S.meta.try || {}).ids || []);
+  function openRecipe(id, por, ctx) {
     const r = recipe(id); if (!r) return;
     const base = +r.servings || 1;
-    view = { id, por: por || base };
+    if (ctx === undefined) ctx = view && view.id === id ? view.ctx : null;
+    view = { id, por: por || base, ctx };
+    const liked = tryList().includes(id);
     const k = view.por / base, n = nutOf(r);
     const link = safeUrl(r.link);
-    openSheet(`<div class="shhead"><button class="btn ghost small" data-act="close">← Назад</button><button class="btn ghost small" data-act="edit">Редагувати</button></div>
+    openSheet(`<div class="shhead"><button class="btn ghost small" data-act="close">← Назад</button><span style="flex:1"></span><button class="btn ghost small heart${liked ? " on" : ""}" data-act="try" aria-pressed="${liked}" aria-label="Хочу спробувати">${liked ? "❤" : "♡"}</button><button class="btn ghost small" data-act="edit">Редагувати</button></div>
     <div class="stack" data-rid="${esc(r.id)}">
       <h2 style="font-size:2rem">${esc(r.title)}</h2>
+      ${ctx && ctx.meal ? leftBar(r, ctx) : ""}
       <div class="tags">${r.src ? `<span class="pill">📖 ${esc(r.src)}</span>` : ""}<span class="pill">${esc(catOf(r))}</span><span class="pill"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i> ${esc(GROUPS[r.group] || "Ціла страва")}</span>${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
       <div class="hero">${Art.bowl(r, catOf(r), 132)}</div>
       ${r.time && r.time.total ? `<p class="timeline">⏱ Разом <b>${fmtMin(r.time.total)}</b>${r.time.active ? ` · біля плити <b>${fmtMin(r.time.active)}</b>` : ""}</p>` : ""}
@@ -695,6 +721,30 @@
     const r = recipe(rid);
     if (!r) return;
     if (act === "edit") { openForm(r); return; }
+    if (act === "try") {
+      const ids = tryList().filter(x => x !== r.id); if (!tryList().includes(r.id)) ids.unshift(r.id);
+      const ok = await save(() => Store.set("meta", "try", { ids }));
+      if (ok) { setTimeout(() => openRecipe(r.id, view.por), 150); toast(ids.includes(r.id) ? "Додала в «Хочу спробувати»" : "Прибрала з «Хочу спробувати»"); }
+      return;
+    }
+    if (act === "leftAdd" && view.ctx) {
+      const ctx = view.ctx, src = (slotOf(ctx.date, ctx.meal)?.dishes || []).find(d => d.rid === r.id); if (!src) return;
+      const [d, m] = $("#leftTo").value.split("_"), id = `${d}_${m}`, sl = slotOf(d, m);
+      const dishes = structuredClone(sl ? sl.dishes || [] : []), ex = dishes.find(x => x.rid === r.id);
+      if (ex) { ex.left = true; ex.who = [...new Set([...(ex.who || []), ...(src.who || [])])]; } else dishes.push({ rid: r.id, who: [...(src.who || [])], left: true });
+      const ok = await save(() => Store.set("slots", id, { date: d, meal: m, dishes }));
+      if (ok) { toast(`Залишки: ${slotLabel(d, m)}`); setTimeout(() => openRecipe(r.id, view.por), 200); }
+      return;
+    }
+    if (act === "leftDone" && view.ctx) {
+      const ctx = view.ctx;
+      for (const sl of S.slots.filter(s => after(ctx.date, ctx.meal, s.date, s.meal) && (s.dishes || []).some(d => d.rid === r.id && d.left))) {
+        const dishes = sl.dishes.filter(d => !(d.rid === r.id && d.left));
+        await save(() => dishes.length ? Store.set("slots", sl.id, { date: sl.date, meal: sl.meal, dishes }) : Store.del("slots", sl.id));
+      }
+      toast("Залишки прибрала з меню"); setTimeout(() => openRecipe(r.id, view.por), 200);
+      return;
+    }
     if (act === "pminus" || act === "pplus") {
       const step = (+r.servings || 1) >= 6 ? 1 : 0.5;
       openRecipe(r.id, Math.max(step, view.por + (act === "pplus" ? step : -step)));
@@ -1118,6 +1168,7 @@
         if (st && tk < st && tk >= addDays(st, -6)) S.weekStart = st;
       }
       renderSub(); renderMenu(); renderPrep();
+      if (JSON.stringify(tryList()) !== S._try) { S._try = JSON.stringify(tryList()); renderTags(); renderRecipes(); }
       if (EAT && !$("#sheet").hidden && !EAT.form) drawEat();
       if (!ME.busy && !ME.repBusy && !["meT", "repT", "porG"].includes(document.activeElement?.id) && !ME.rep) renderMe();
     });
