@@ -187,7 +187,7 @@ async function viaKey(key, prompt, imgs, ytLink, useUrl) {
 }
 /* баланс Gemini закінчився або спрацював ліміт витрат — це рішення Надії: поповнити чи перейти на безкоштовний */
 const MONEY_MSG = "Гроші на балансі Gemini закінчились (або спрацював ліміт витрат). Час вирішити: поповнити в AI Studio чи відв'язати оплату й перейти на безкоштовний варіант. Напиши Claude.";
-const isMoney = msg => /^40[23] |prepayment|credits are depleted|Spend cap/i.test(String(msg || ""));
+const isMoney = msg => /^402 |prepayment|credits are depleted|Spend cap/i.test(String(msg || ""));
 function b64(file) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(file); });
 }
