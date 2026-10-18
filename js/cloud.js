@@ -59,7 +59,11 @@ export async function start({ config, emails, local, showLogin }) {
 
   /* 3. Gemini */
   const ai = AI.getAI(app, { backend: new AI.GoogleAIBackend() });
-  window.AI = { parseRecipe: opts => parseRecipe(AI, ai, { ...opts, profile: (cache.settings.get("profile") || {}).text || "", key: (cache.settings.get("ai") || {}).geminiKey || "" }) };
+  const aiKey = () => (cache.settings.get("ai") || {}).geminiKey || "";
+  window.AI = {
+    parseRecipe: opts => parseRecipe(AI, ai, { ...opts, profile: (cache.settings.get("profile") || {}).text || "", key: aiKey() }),
+    estimateFood: opts => estimateFood(AI, ai, { ...opts, key: aiKey() })
+  };
 
   return {
     mode: "cloud",
@@ -139,6 +143,30 @@ ${(text || "—").slice(0, 8000)}`;
   j.ingredients = (j.ingredients || []).filter(i => i && i.name).map(i => ({ qty: i.qty == null || i.qty === "" ? null : +i.qty, unit: i.qty == null ? "" : String(i.unit || "шт"), name: String(i.name) }));
   if (!GROUPS.includes(j.group)) j.group = "dish";
   if (!j.ingredients.length && !(j.steps || []).length) { const err = new Error("empty"); err.userMessage = "Рецепту в описі не видно. Додай скриншот або текст."; throw err; }
+  return j;
+}
+/* оцінка КБЖУ того, що з'їли поза меню: етикетка, страва з ресторану, доставка */
+const FOOD_PROMPT = `Оціни калорійність і БЖУ того, що людина з'їла. Може бути фото етикетки (тоді візьми КБЖУ на 100 г з етикетки і помнож на з'їдену вагу), фото страви, скриншот замовлення з доставки (Bolt Food, Wolt тощо) або текстовий опис.
+Якщо вага не вказана — оціни типову порцію (для ресторану — звичайну ресторанну порцію; «половина», «шматочок», «2 кубики» врахуй).
+Поверни ТІЛЬКИ JSON: {"title":"коротка назва українською","grams":250,"k":520,"p":24,"f":18,"c":65,"note":"на чому базується оцінка, 1 речення"}. k,p,f,c — на всю з'їдену кількість.`;
+async function estimateFood(AI, ai, { text, images, grams, key }) {
+  const prompt = FOOD_PROMPT + `\n\nОпис: ${text || "—"}${grams ? `\nЗ'їдено грамів: ${grams}` : ""}`;
+  const imgs = [];
+  for (const f of images || []) imgs.push({ mime: f.type || "image/jpeg", data: await b64(f) });
+  let raw;
+  try {
+    if (key) raw = await viaKey(key, prompt, imgs, "", false);
+    else {
+      const parts = [{ text: prompt }, ...imgs.map(i => ({ inlineData: { mimeType: i.mime, data: i.data } }))];
+      raw = (await AI.getGenerativeModel(ai, { model: "gemini-flash-latest" }).generateContent({ contents: [{ role: "user", parts }] })).response.text();
+    }
+  } catch (e) {
+    const err = new Error("gemini"); err.userMessage = /quota|429|RESOURCE_EXHAUSTED/i.test(String(e && e.message)) ? "Ліміт Gemini на сьогодні вичерпано." : "Не вийшло порахувати. Впиши цифри вручну."; throw err;
+  }
+  const m = String(raw || "").match(/\{[\s\S]*\}/);
+  if (!m) { const err = new Error("no json"); err.userMessage = "Gemini не зміг оцінити. Впиши цифри вручну."; throw err; }
+  const j = JSON.parse(m[0]);
+  for (const k of ["grams", "k", "p", "f", "c"]) j[k] = +j[k] || 0;
   return j;
 }
 /* прямий виклик Gemini API власним ключем (ключ лежить у закритих даних родини, не в коді) */

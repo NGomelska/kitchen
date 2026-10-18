@@ -215,15 +215,21 @@
   }
 
   /* ---------- меню-конструктор ---------- */
-  function slotNut(slot, pid) {
+  /* що людина з'їла: меню × правки порцій + додане окремо (документ meta/eat_<дата>_<людина>) */
+  const eatDoc = (date, pid) => S.meta[`eat_${date}_${pid}`] || {};
+  function slotNut(slot, pid, date, meal) {
     let n = Nutrition.zero(), g = 0; const w = +(person(pid) || {}).w || 1;
+    const adj = date ? eatDoc(date, pid).adj || {} : {};
     for (const d of slot ? slot.dishes || [] : []) {
       if (!(d.who || []).includes(pid)) continue;
-      const r = recipe(d.rid); if (r) { const x = nutOf(r); n = Nutrition.add(n, x, w); g += (x.g || 0) * w; }
+      const f = adj[`${meal}_${d.rid}`] ?? 1;
+      const r = recipe(d.rid); if (r && f) { const x = nutOf(r); n = Nutrition.add(n, x, w * f); g += (x.g || 0) * w * f; }
     }
+    if (date) for (const e of eatDoc(date, pid).extra || []) if (e.meal === meal) { n = Nutrition.add(n, e); g += +e.g || 0; }
     n.g = g;
     return n;
   }
+  const dayNut = (date, pid) => MEALS.reduce((a, [m]) => Nutrition.add(a, slotNut(slotOf(date, m), pid, date, m)), Nutrition.zero());
   function renderMenu() {
     if (!S.weekStart) return;
     const dates = weekDates(), tk = todayKey();
@@ -236,19 +242,24 @@
 
     // КБЖУ за день для вибраної людини
     const p = person(S.viewP) || S.people[0];
-    let day = Nutrition.zero();
-    for (const [m] of MEALS) day = Nutrition.add(day, slotNut(slotOf(S.day, m), p.id));
+    const day = dayNut(S.day, p.id);
+    // тиждень: дні до сьогодні включно, де щось було
+    const past = dates.filter(d => d <= tk).map(d => dayNut(d, p.id)).filter(n => n.k > 0);
+    const avg = past.length ? Nutrition.add(Nutrition.zero(), past.reduce((a, n) => Nutrition.add(a, n), Nutrition.zero()), 1 / past.length) : null;
+    const edits = Object.keys(eatDoc(S.day, p.id).adj || {}).length + (eatDoc(S.day, p.id).extra || []).length;
     const goalP = +p.goalP || 0, goalK = +p.goalK || 0;
     $("#totals").innerHTML = `<div class="card totals">
-      <div class="who"><span class="hint" style="flex:1">КБЖУ за ${WDA[toDate(S.day).getDay()]}, тарілка:</span>${S.people.map(x => `<button class="av big${x.id === p.id ? "" : " off"}" data-vp="${esc(x.id)}" aria-label="${esc(x.name)}">${esc(x.short || x.name[0])}</button>`).join("")}</div>
+      <div class="who"><span class="hint" style="flex:1">З'їдено за ${WDA[toDate(S.day).getDay()]}:</span>${S.people.map(x => `<button class="av big${x.id === p.id ? "" : " off"}" data-vp="${esc(x.id)}" aria-label="${esc(x.name)}">${esc(x.short || x.name[0])}</button>`).join("")}</div>
       <div class="macros"><div><b>${r0(day.k)}</b><span>ккал</span></div><div><b>${r0(day.p)}</b><span>білки</span></div><div><b>${r0(day.f)}</b><span>жири</span></div><div><b>${r0(day.c)}</b><span>вуглев.</span></div></div>
       ${goalP ? `<div><div class="hint" style="margin-bottom:4px">Білок: ${r0(day.p)} з ${goalP} г</div><div class="bar"><i style="width:${Math.min(100, day.p / goalP * 100)}%"></i></div></div>` : ""}
       ${goalK ? `<div class="hint">Калорії: ${r0(day.k)} з ${goalK}</div>` : ""}
+      <button class="btn ghost small" data-eat="1">Мій день: що з'їла${edits ? ` · правок ${edits}` : ""} →</button>
+      ${avg && past.length > 1 ? `<div class="hint">Тиждень, у середньому за ${past.length} дн.: <b>${r0(avg.k)} ккал</b> · Б ${r0(avg.p)} · Ж ${r0(avg.f)} · У ${r0(avg.c)}</div>` : ""}
     </div>`;
 
     $("#meals").innerHTML = MEALS.map(([m, label]) => {
       const sl = slotOf(S.day, m), dishes = sl ? sl.dishes || [] : [];
-      const n = slotNut(sl, p.id);
+      const n = slotNut(sl, p.id, S.day, m);
       const chips = dishes.map(d => {
         const r = recipe(d.rid); if (!r) return "";
         const who = S.people.filter(x => (d.who || []).includes(x.id)).map(x => x.short || x.name[0]).join("");
@@ -263,7 +274,10 @@
     $("#calcSub").textContent = rows.length ? `${rows.length} продуктів на цей тиждень` : "спершу збери миски";
   }
   $("#week").addEventListener("click", ev => { const b = ev.target.closest("[data-day]"); if (!b) return; S.day = b.dataset.day; renderMenu(); renderPrep(); });
-  $("#totals").addEventListener("click", ev => { const b = ev.target.closest("[data-vp]"); if (!b) return; S.viewP = b.dataset.vp; renderMenu(); });
+  $("#totals").addEventListener("click", ev => {
+    if (ev.target.closest("[data-eat]")) { openEat(S.day, S.viewP); return; }
+    const b = ev.target.closest("[data-vp]"); if (!b) return; S.viewP = b.dataset.vp; renderMenu();
+  });
   $("#meals").addEventListener("click", ev => { const b = ev.target.closest("[data-meal]"); if (b) openPicker(S.day, b.dataset.meal); });
 
   /* ---------- підготовка ---------- */
@@ -352,6 +366,120 @@
     prepWrite(date, d => { d.custom.push(item); });
     $("#prepText").value = "";
   };
+
+  /* ---------- Мій день: що з'їла ---------- */
+  let EAT = null;
+  const FACTORS = [[0, "0"], [0.5, "½"], [1, "1"], [1.5, "1½"], [2, "2"]];
+  const nowMeal = () => { const h = new Date().getHours(); return h < 11 ? "b" : h < 16 ? "l" : h < 21 ? "d" : "x"; };
+  function openEat(date, pid) {
+    EAT = { date, pid, form: false };
+    drawEat();
+  }
+  function drawEat() {
+    const { date, pid } = EAT, p = person(pid) || S.people[0], doc = eatDoc(date, pid), adj = doc.adj || {};
+    const day = dayNut(date, pid);
+    let h = `<div class="shhead"><button class="btn ghost small" data-act="close">← Назад</button><h2>${esc(p.name)}, ${WDF[toDate(date).getDay()]}</h2></div>
+      <div class="card"><div class="macros"><div><b>${r0(day.k)}</b><span>ккал</span></div><div><b>${r0(day.p)}</b><span>білки</span></div><div><b>${r0(day.f)}</b><span>жири</span></div><div><b>${r0(day.c)}</b><span>вуглев.</span></div></div></div>
+      <p class="hint" style="margin:10px 0">Усе з меню вважається з'їденим. Зміни порцію, якщо з'їла менше чи більше, і додай те, чого не було в меню.</p>`;
+    for (const [m, label] of MEALS) {
+      const sl = slotOf(date, m), dishes = (sl ? sl.dishes || [] : []).filter(d => (d.who || []).includes(pid) && recipe(d.rid));
+      const extras = (doc.extra || []).filter(e => e.meal === m);
+      if (!dishes.length && !extras.length) continue;
+      h += `<div class="group" style="margin-bottom:12px"><h3>${label}</h3><div class="list">`;
+      for (const d of dishes) {
+        const f = adj[`${m}_${d.rid}`] ?? 1, r = recipe(d.rid);
+        h += `<div class="row eatrow"><span class="nm">${esc(r.title)}</span><span class="fx">${FACTORS.map(([v, l]) => `<button class="chip small${v === f ? " on" : ""}" data-act="edF" data-m="${m}" data-rid="${esc(d.rid)}" data-v="${v}" aria-label="Порція ${l}">${l}</button>`).join("")}</span></div>`;
+      }
+      for (const e of extras) h += `<div class="row eatrow"><span class="nm">${esc(e.t)}<span class="src">${e.g ? `${r0(e.g)} г · ` : ""}${r0(e.k)} ккал · Б ${r0(e.p)} · Ж ${r0(e.f)} · У ${r0(e.c)}</span></span><button class="x" data-act="edX" data-id="${esc(e.id)}" aria-label="Прибрати">×</button></div>`;
+      h += `</div></div>`;
+    }
+    h += EAT.form ? eatForm() : `<button class="btn green wide" data-act="edOpen">+ Додати з'їдене</button>`;
+    openSheet(h);
+    if (EAT.form) wireEatForm();
+  }
+  function eatForm() {
+    const favs = ((S.meta.favs || {}).list || []);
+    const opts = S.recipes.slice().sort((a, b) => a.title.localeCompare(b.title, "uk"));
+    return `<div class="card stack" style="gap:10px">
+      <h3>Додати з'їдене</h3>
+      ${favs.length ? `<div class="chips">${favs.map((f, i) => `<button class="chip small" data-act="edFav" data-i="${i}">${esc(f.t)}</button>`).join("")}</div>` : ""}
+      <label class="fl">Що з'їла <input type="text" id="eT" placeholder="напр.: 2 кубики гіркого шоколаду, пад тай з куркою (півпорції)"></label>
+      <label class="fl">Фото етикетки, страви чи скриншот замовлення <input type="file" id="eImg" accept="image/*" multiple></label>
+      <div class="parse"><button class="btn ghost" type="button" data-act="edAI">Порахувати з Gemini</button><span class="state" id="eState"></span></div>
+      <label class="fl">Або з рецепта <select id="eRec"><option value="">— вибери —</option>${opts.map(r => `<option value="${esc(r.id)}">${esc(r.title)}</option>`).join("")}</select></label>
+      <div class="person" style="grid-template-columns:1fr 1fr"><label class="fl">Скільки, г<input type="number" id="eG" min="0" step="5"></label><label class="fl">Коли<select id="eM">${MEALS.map(([m, l]) => `<option value="${m}"${m === nowMeal() ? " selected" : ""}>${l}</option>`).join("")}</select></label></div>
+      <div class="nutbox"><input type="number" id="eK" placeholder="ккал"><input type="number" id="eP" placeholder="Б"><input type="number" id="eF" placeholder="Ж"><input type="number" id="eC" placeholder="У"></div>
+      <p class="hint" id="eNote">КБЖУ — на всю з'їдену кількість.</p>
+      <label class="chk"><input type="checkbox" id="eFav"> зберегти в «часті»</label>
+      <div class="pbtns"><button class="btn" data-act="edAdd">Додати</button><button class="btn ghost" data-act="edCancel">Скасувати</button></div>
+    </div>`;
+  }
+  let eatPer100 = null;
+  function wireEatForm() {
+    eatPer100 = null;
+    $("#eRec").onchange = () => {
+      const r = recipe($("#eRec").value); if (!r) return;
+      const n = nutOf(r), w = +(person(EAT.pid) || {}).w || 1;
+      $("#eT").value = r.title;
+      eatPer100 = n.per100;
+      const g = Math.round((n.g || 0) * w);
+      $("#eG").value = g || "";
+      fillEat(n.per100 && g ? scaleN(n.per100, g / 100) : Nutrition.add(Nutrition.zero(), n, w));
+      $("#eNote").textContent = "Порахувала на одну твою порцію. Зміни грами — цифри перерахуються.";
+    };
+    $("#eG").oninput = () => { const g = +$("#eG").value; if (eatPer100 && g > 0) fillEat(scaleN(eatPer100, g / 100)); };
+  }
+  const scaleN = (n, k) => ({ k: n.k * k, p: n.p * k, f: n.f * k, c: n.c * k });
+  const fillEat = n => { $("#eK").value = r0(n.k); $("#eP").value = r0(n.p); $("#eF").value = r0(n.f); $("#eC").value = r0(n.c); };
+  async function eatWrite(fn) {
+    const id = `eat_${EAT.date}_${EAT.pid}`, doc = structuredClone(S.meta[id] || {}); delete doc.id;
+    doc.adj = doc.adj || {}; doc.extra = doc.extra || [];
+    fn(doc);
+    const ok = await save(() => Store.set("meta", id, doc));
+    if (ok) setTimeout(() => { if (EAT && !$("#sheet").hidden) drawEat(); }, 150);
+    return ok;
+  }
+  $("#sheet").addEventListener("click", async ev => {
+    const b = ev.target.closest("[data-act]"); if (!b || !EAT || !b.dataset.act.startsWith("ed")) return;
+    const act = b.dataset.act;
+    if (act === "edF") { const k = `${b.dataset.m}_${b.dataset.rid}`, v = +b.dataset.v; eatWrite(d => { if (v === 1) delete d.adj[k]; else d.adj[k] = v; }); return; }
+    if (act === "edX") { eatWrite(d => { d.extra = d.extra.filter(e => e.id !== b.dataset.id); }); return; }
+    if (act === "edOpen") { EAT.form = true; drawEat(); $("#eT").focus(); return; }
+    if (act === "edCancel") { EAT.form = false; drawEat(); return; }
+    if (act === "edFav") {
+      const f = ((S.meta.favs || {}).list || [])[+b.dataset.i]; if (!f) return;
+      $("#eT").value = f.t; $("#eG").value = f.g || ""; fillEat(f); eatPer100 = f.g ? scaleN(f, 100 / f.g) : null; return;
+    }
+    if (act === "edAI") {
+      const st = $("#eState");
+      if (!window.AI || !window.AI.estimateFood) { st.textContent = "Gemini ще не підключений (Ще → Ключ Gemini)."; return; }
+      const text = $("#eT").value.trim(), images = [...$("#eImg").files].slice(0, 3);
+      if (!text && !images.length) { st.textContent = "Напиши, що з'їла, або додай фото."; return; }
+      b.disabled = true; st.textContent = "Рахую…";
+      try {
+        const j = await window.AI.estimateFood({ text, images, grams: +$("#eG").value || null });
+        if (j.title && !text) $("#eT").value = j.title;
+        if (j.grams) $("#eG").value = r0(j.grams);
+        fillEat(j); eatPer100 = j.grams ? scaleN(j, 100 / j.grams) : null;
+        st.textContent = ""; $("#eNote").textContent = j.note ? `Gemini: ${j.note}` : "Порахувала. Перевір і натисни «Додати».";
+      } catch (e) { console.error(e); st.textContent = e && e.userMessage || "Не вийшло порахувати. Впиши цифри вручну."; }
+      finally { b.disabled = false; }
+      return;
+    }
+    if (act === "edAdd") {
+      const t = $("#eT").value.trim(); if (!t) { toast("Напиши, що з'їла."); return; }
+      const v = id => +$(id).value || 0;
+      const item = { id: Date.now().toString(36), t, meal: $("#eM").value, g: v("#eG") || null, k: v("#eK"), p: v("#eP"), f: v("#eF"), c: v("#eC") };
+      if (!item.k && !item.p) { toast("Додай калорії або натисни «Порахувати з Gemini»."); return; }
+      if ($("#eFav").checked) {
+        const list = ((S.meta.favs || {}).list || []).filter(f => f.t !== t);
+        list.unshift({ t, g: item.g, k: item.k, p: item.p, f: item.f, c: item.c });
+        save(() => Store.set("meta", "favs", { list: list.slice(0, 20) }));
+      }
+      EAT.form = false;
+      eatWrite(d => { d.extra.push(item); });
+    }
+  });
 
   /* ---------- вибір страв у миску ---------- */
   let P = null;
@@ -471,7 +599,7 @@
   $("#recNew").onclick = () => openForm(null);
 
   function openSheet(html) { $("#sheetBody").innerHTML = html; $("#sheet").hidden = false; $("#sheet").scrollTop = 0; document.body.style.overflow = "hidden"; }
-  function closeSheet() { $("#sheet").hidden = true; $("#sheetBody").innerHTML = ""; document.body.style.overflow = ""; delete $("#sheet").dataset.plan; P = null; }
+  function closeSheet() { EAT = null; $("#sheet").hidden = true; $("#sheetBody").innerHTML = ""; document.body.style.overflow = ""; delete $("#sheet").dataset.plan; P = null; }
 
   let view = { id: null, por: 0 };
   function scaled(g, k) {
@@ -812,6 +940,7 @@
         if (st && tk < st && tk >= addDays(st, -6)) S.weekStart = st;
       }
       renderSub(); renderMenu(); renderPrep();
+      if (EAT && !$("#sheet").hidden && !EAT.form) drawEat();
     });
     Store.sub("settings", d => {
       const p = d.find(x => x.id === "people"); if (p && Array.isArray(p.list)) S.people = p.list;

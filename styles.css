@@ -211,3 +211,11 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .crop-in input[type=range]{width:100%;accent-color:var(--accent)}
 
 .timeline{text-align:center;margin:-6px 0 0;color:var(--ink-soft);font-size:.92rem}
+
+/* мій день */
+.eatrow{flex-wrap:wrap;padding:8px 10px}
+.eatrow .nm{flex:1 1 140px}
+.eatrow .fx{display:flex;gap:4px;flex-wrap:wrap}
+.eatrow .fx .chip{min-width:34px;justify-content:center}
+.eatrow .src{display:block;color:var(--ink-soft);font-size:.78rem}
+.totals [data-eat]{align-self:flex-start}
