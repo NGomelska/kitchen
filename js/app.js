@@ -263,7 +263,7 @@
       const chips = dishes.map(d => {
         const r = recipe(d.rid); if (!r) return "";
         const who = S.people.filter(x => (d.who || []).includes(x.id)).map(x => x.short || x.name[0]).join("");
-        return `<span class="dchip"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i><span class="t">${esc(r.title)}${d.left ? " ↻" : ""}</span><span class="w">${esc(who)}</span></span>`;
+        return `<span class="dchip link" data-rid="${esc(r.id)}"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i><span class="t">${esc(r.title)}${d.left ? " ↻" : ""}</span><span class="w">${esc(who)}</span></span>`;
       }).join("");
       return `<button class="meal" data-meal="${m}">${bowl(groupsOf(dishes), 64)}<span class="body"><span class="lbl">${label}</span>${dishes.length ? `<span class="chips" style="gap:5px">${chips}</span>${n.k ? `<span class="nut">${esc(p.name)}: тарілка ≈${r0(n.g)} г · ${Nutrition.line(n)}</span>` : ""}` : `<span class="hint">Тапни, щоб зібрати миску</span>`}</span><span class="plusc">+</span></button>`;
     }).join("");
@@ -278,7 +278,11 @@
     if (ev.target.closest("[data-eat]")) { openEat(S.day, S.viewP); return; }
     const b = ev.target.closest("[data-vp]"); if (!b) return; S.viewP = b.dataset.vp; renderMenu();
   });
-  $("#meals").addEventListener("click", ev => { const b = ev.target.closest("[data-meal]"); if (b) openPicker(S.day, b.dataset.meal); });
+  $("#meals").addEventListener("click", ev => {
+    // тап по назві страви — відкрити рецепт; по решті миски — змінити миску
+    const c = ev.target.closest("[data-rid]"); if (c) { openRecipe(c.dataset.rid); return; }
+    const b = ev.target.closest("[data-meal]"); if (b) openPicker(S.day, b.dataset.meal);
+  });
 
   /* ---------- підготовка ---------- */
   const mealTime = m => ((S.meta.times || {})[m]) || MEAL_T[m];
