@@ -209,3 +209,5 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .crop-stage{position:relative;width:100%;aspect-ratio:1/1;max-width:100%;touch-action:none}
 .crop-stage canvas{width:100%;height:100%;border-radius:14px;display:block;touch-action:none;cursor:grab;background:#222}
 .crop-in input[type=range]{width:100%;accent-color:var(--accent)}
+
+.timeline{text-align:center;margin:-6px 0 0;color:var(--ink-soft);font-size:.92rem}

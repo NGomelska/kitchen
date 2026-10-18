@@ -52,6 +52,8 @@
     if (mm) { min = +mm[1]; t = t.slice(0, mm.index).trim(); }
     return when === "pre" ? { t, when, before, min } : { t, when, min };
   }
+  /* 35 → «35 хв», 80 → «1 год 20 хв», 240 → «4 год» */
+  const fmtMin = m => { m = Math.round(+m || 0); if (!m) return ""; const h = Math.floor(m / 60), r = m % 60; return h ? `${h} год${r ? ` ${r} хв` : ""}` : `${r} хв`; };
   const prepLine = p => `${p.when === "pre" ? `за ${p.before || 30} хв` : WHEN_W[p.when] || "вдень"}: ${p.t}${p.min ? ` (${p.min} хв)` : ""}`;
   const WD = ["Нд", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
   const WDF = ["неділя", "понеділок", "вівторок", "середа", "четвер", "п'ятниця", "субота"];
@@ -378,7 +380,7 @@
     const sel = new Set(P.dishes.map(d => d.rid));
     $("#pkGrid").innerHTML = arr.length ? arr.map(r => {
       const n = nutOf(r);
-      return `<button class="dish${sel.has(r.id) ? " sel" : ""}" data-act="pkT" data-rid="${esc(r.id)}">${Art.bowl(r, catOf(r), 44)}<span class="nm">${esc(r.title)}</span><span class="nut">${n.per100 ? `100 г: ${r0(n.per100.k)} ккал · Б ${r0(n.per100.p)}` : n.k ? `${r0(n.k)} ккал · Б ${r0(n.p)} на порцію` : ""}</span></button>`;
+      return `<button class="dish${sel.has(r.id) ? " sel" : ""}" data-act="pkT" data-rid="${esc(r.id)}">${Art.bowl(r, catOf(r), 44)}<span class="nm">${esc(r.title)}</span><span class="nut">${n.per100 ? `100 г: ${r0(n.per100.k)} ккал · Б ${r0(n.per100.p)}` : n.k ? `${r0(n.k)} ккал · Б ${r0(n.p)} на порцію` : ""}${r.time && r.time.total ? ` · ⏱ ${fmtMin(r.time.total)}` : ""}</span></button>`;
     }).join("") : `<p class="empty" style="grid-column:1/-1">Нічого не знайшла. Додай просту страву нижче.</p>`;
   }
   function drawPkSimple() {
@@ -458,7 +460,7 @@
     if (!arr.length) { el.innerHTML = `<p class="empty">Нічого не знайшла. Спробуй інше слово чи тег.</p>`; return; }
     const card = r => {
       const n = nutOf(r);
-      return `<button class="rec" data-id="${esc(r.id)}"><span class="th">${Art.bowl(r, catOf(r), 60)}</span><span class="meta"><span class="t">${esc(r.title)}</span><span class="nut">${n.per100 ? `на 100 г: ${Nutrition.line(n.per100)}` : n.k ? `на порцію: ${Nutrition.line(n)}` : ""}</span><span class="tags">${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</span></span></button>`;
+      return `<button class="rec" data-id="${esc(r.id)}"><span class="th">${Art.bowl(r, catOf(r), 60)}</span><span class="meta"><span class="t">${esc(r.title)}</span><span class="nut">${n.per100 ? `на 100 г: ${Nutrition.line(n.per100)}` : n.k ? `на порцію: ${Nutrition.line(n)}` : ""}</span>${r.time && r.time.total ? `<span class="nut">⏱ ${fmtMin(r.time.total)}${r.time.active && r.time.active < r.time.total ? ` · біля плити ${fmtMin(r.time.active)}` : ""}</span>` : ""}<span class="tags">${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</span></span></button>`;
     };
     // «Усі» — розкладено по категоріях з заголовками
     if (S.rcat === "all" && !S.q) {
@@ -489,6 +491,7 @@
       <h2 style="font-size:2rem">${esc(r.title)}</h2>
       <div class="tags"><span class="pill">${esc(catOf(r))}</span><span class="pill"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i> ${esc(GROUPS[r.group] || "Ціла страва")}</span>${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
       <div class="hero">${Art.bowl(r, catOf(r), 132)}</div>
+      ${r.time && r.time.total ? `<p class="timeline">⏱ Разом <b>${fmtMin(r.time.total)}</b>${r.time.active ? ` · біля плити <b>${fmtMin(r.time.active)}</b>` : ""}</p>` : ""}
       ${r.thumb ? `<details class="note"><summary>Скриншот рецепта</summary><img class="bigimg" style="margin-top:8px" src="${esc(r.thumb)}" alt="Скриншот рецепта"></details>` : ""}
       ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">Відкрити оригінал ↗</a>` : ""}
       <div class="card stack" style="gap:8px">${n.per100 ? `<h3>КБЖУ на 100 г готової страви</h3>
@@ -599,6 +602,8 @@
       <label class="fl">Категорія<select id="fCat">${RCATS.map(c => `<option${c === (r ? catOf(r) : (prefill && prefill.cat) || "Інше") ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
       <label class="fl">Що це в мисці<select id="fGroup">${GKEYS.map(k => `<option value="${k}"${k === ((r && r.group) || "dish") ? " selected" : ""}>${GROUPS[k]}</option>`).join("")}</select></label>
       <div class="group"><span class="fl">Для кого</span><div class="chips" id="fTags"></div></div>
+      <div class="group"><span class="fl">Час готування, хв <span class="hint">Разом (з запіканням і охолодженням) і скільки з цього треба стояти біля плити</span></span>
+        <div class="person" style="grid-template-columns:1fr 1fr"><input type="number" id="fTimeT" min="0" step="5" placeholder="разом" value="${esc(r && r.time ? r.time.total || "" : "")}"><input type="number" id="fTimeA" min="0" step="5" placeholder="біля плити" value="${esc(r && r.time ? r.time.active || "" : "")}"></div></div>
       <label class="fl">На скільки порцій рецепт<input type="number" id="fServ" min="0.5" step="0.5" value="${esc(r ? r.servings || 4 : 4)}"></label>
       <label class="fl">Інгредієнти <span class="hint">Кожен з нового рядка: «700 г фарш з індички», «2 шт яйця», «сіль — за смаком»</span><textarea id="fIng" rows="7">${esc(ingText)}</textarea></label>
       <label class="fl">Підготовка заздалегідь <span class="hint">Кожна справа з нового рядка: «напередодні: замаринувати курку (10 хв)», «зранку: …», «вдень: …», «за 30 хв: котлети в аерогриль (2 хв)»</span><textarea id="fPrep" rows="4">${esc(r ? (r.prep || []).map(prepLine).join("\n") : "")}</textarea></label>
@@ -680,6 +685,7 @@
       if (j.ingredients && j.ingredients.length) $("#fIng").value = j.ingredients.map(Portions.lineOf).join("\n");
       if (j.steps && j.steps.length) $("#fSteps").value = j.steps.join("\n");
       if (j.tip) $("#fTip").value = j.tip;
+      if (j.time && +j.time.total) { $("#fTimeT").value = +j.time.total; if (+j.time.active) $("#fTimeA").value = +j.time.active; }
       if (Array.isArray(j.prep) && j.prep.length) $("#fPrep").value = j.prep.filter(x => x && x.t).map(x => prepLine({ t: String(x.t), when: ["eve", "morn", "day", "pre"].includes(x.when) ? x.when : "pre", before: +x.before || 30, min: +x.min || null })).join("\n");
       for (const t of j.tags || []) if (TAGS.includes(t)) F.tags.add(t);
       drawFormTags(); st.textContent = "Готово. Перевір і збережи.";
@@ -698,6 +704,7 @@
       ingredients: lines($("#fIng").value).map(Portions.parseLine).filter(Boolean).map(i => ({ ...i, name: cap(i.name) })),
       steps: lines($("#fSteps").value), prep: lines($("#fPrep").value).map(parsePrep).filter(Boolean), tip: $("#fTip").value.trim(), link: $("#fLink").value.trim(),
       thumb: F.thumb || "", photo: F.photo || "", simple: !!(old && old.simple), updatedAt: Date.now(),
+      time: +$("#fTimeT").value > 0 ? { total: +$("#fTimeT").value, active: +$("#fTimeA").value || null } : null,
       cookedG: +$("#fCooked").value > 0 ? +$("#fCooked").value : null,
       nutr: nutr.some(v => v != null) ? { k: nutr[0] || 0, p: nutr[1] || 0, f: nutr[2] || 0, c: nutr[3] || 0 } : null
     };
