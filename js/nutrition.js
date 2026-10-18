@@ -122,6 +122,12 @@ const Nutrition = (() => {
     }
     const weighed = +recipe.cookedG > 0;
     if (weighed) cookG = +recipe.cookedG;
+    // КБЖУ з книги на 100 г: беремо його, а порцію рахуємо за вагою
+    if (recipe.n100) {
+      const h = { k: +recipe.n100.k || 0, p: +recipe.n100.p || 0, f: +recipe.n100.f || 0, c: +recipe.n100.c || 0 };
+      const pg = +recipe.portionG || (cookG / s) || 100;
+      return { ...scale(h, pg / 100), g: pg, gRaw: rawG / s, per100: h, per100raw: null, yieldPct: rawG > 0 ? Math.round(pg * s / rawG * 100) : 100, method: "book", missing: [] };
+    }
     const base = recipe.nutr
       ? { k: (+recipe.nutr.k || 0) * s, p: (+recipe.nutr.p || 0) * s, f: (+recipe.nutr.f || 0) * s, c: (+recipe.nutr.c || 0) * s }
       : sum;

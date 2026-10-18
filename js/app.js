@@ -77,7 +77,7 @@
 
   const S = {
     items: [], recipes: [], slots: [], meta: {}, people: SEED.people,
-    tag: "all", rcat: "all", q: "", pantryEdit: false,
+    tag: "all", rcat: "all", src: "all", q: "", pantryEdit: false,
     weekStart: null, day: null, viewP: "me", prepWho: "all", profile: "", aiKey: ""
   };
   let nutCache = new Map();
@@ -569,12 +569,15 @@
 
   /* ---------- рецепти ---------- */
   function renderTags() {
-    const full = S.recipes.filter(r => !r.simple), cnt = c => full.filter(r => catOf(r) === c).length;
+    const full = S.recipes.filter(r => !r.simple && (S.src === "all" || (S.src === "mine" ? !r.src : (r.src || "").startsWith(S.src)))), cnt = c => full.filter(r => catOf(r) === c).length;
     const cats = RCATS.filter(c => cnt(c));
     $("#recCats").innerHTML = [["all", `Усі ${full.length}`], ...cats.map(c => [c, `${c} ${cnt(c)}`]), ["simple", "Прості страви"]].map(([v, l]) => `<button class="gbtn${S.rcat === v ? " on" : ""}" data-rcat="${esc(v)}">${esc(l)}</button>`).join("");
+    const books = [...new Set(S.recipes.filter(r => r.src).map(r => r.src.split(" · ")[0]))];
+    $("#recSrc").innerHTML = books.length ? [["all", "Усі джерела"], ["mine", "Мої"], ...books.map(b => [b, "📖 " + b])].map(([v, l]) => `<button class="chip small${S.src === v ? " on" : ""}" data-src="${esc(v)}">${esc(l)}</button>`).join("") : "";
     $("#recTags").innerHTML = [["all", "Для всіх"], ...TAGS.map(t => [t, t])].map(([v, l]) => `<button class="chip small${S.tag === v ? " on" : ""}" data-tag="${esc(v)}">${esc(l)}</button>`).join("");
   }
   $("#recCats").onclick = ev => { const b = ev.target.closest("[data-rcat]"); if (!b) return; S.rcat = b.dataset.rcat; renderTags(); renderRecipes(); };
+  $("#recSrc").onclick = ev => { const b = ev.target.closest("[data-src]"); if (!b) return; S.src = b.dataset.src; renderTags(); renderRecipes(); };
   $("#recTags").onclick = ev => { const b = ev.target.closest("[data-tag]"); if (!b) return; S.tag = b.dataset.tag; renderTags(); renderRecipes(); };
   $("#recSearch").oninput = ev => { S.q = ev.target.value.trim().toLowerCase(); renderRecipes(); };
   function renderRecipes() {
@@ -582,6 +585,7 @@
     if (S.rcat === "simple") arr = arr.filter(r => r.simple);
     else { arr = arr.filter(r => !r.simple); if (S.rcat !== "all") arr = arr.filter(r => catOf(r) === S.rcat); }
     if (S.tag !== "all") arr = arr.filter(r => (r.tags || []).includes(S.tag));
+    if (S.src === "mine") arr = arr.filter(r => !r.src); else if (S.src !== "all") arr = arr.filter(r => (r.src || "").startsWith(S.src));
     if (S.q) arr = arr.filter(r => (r.title + " " + (r.ingredients || []).map(i => i.name).join(" ")).toLowerCase().includes(S.q));
     const el = $("#recList");
     if (!S.recipes.length) { el.innerHTML = `<p class="empty">Поки порожньо. Натисни «+ Рецепт».</p>`; return; }
@@ -617,7 +621,7 @@
     openSheet(`<div class="shhead"><button class="btn ghost small" data-act="close">← Назад</button><button class="btn ghost small" data-act="edit">Редагувати</button></div>
     <div class="stack" data-rid="${esc(r.id)}">
       <h2 style="font-size:2rem">${esc(r.title)}</h2>
-      <div class="tags"><span class="pill">${esc(catOf(r))}</span><span class="pill"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i> ${esc(GROUPS[r.group] || "Ціла страва")}</span>${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
+      <div class="tags">${r.src ? `<span class="pill">📖 ${esc(r.src)}</span>` : ""}<span class="pill">${esc(catOf(r))}</span><span class="pill"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i> ${esc(GROUPS[r.group] || "Ціла страва")}</span>${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
       <div class="hero">${Art.bowl(r, catOf(r), 132)}</div>
       ${r.time && r.time.total ? `<p class="timeline">⏱ Разом <b>${fmtMin(r.time.total)}</b>${r.time.active ? ` · біля плити <b>${fmtMin(r.time.active)}</b>` : ""}</p>` : ""}
       ${r.thumb ? `<details class="note"><summary>Скриншот рецепта</summary><img class="bigimg" style="margin-top:8px" src="${esc(r.thumb)}" alt="Скриншот рецепта"></details>` : ""}
@@ -625,7 +629,7 @@
       <div class="card stack" style="gap:8px">${n.per100 ? `<h3>КБЖУ на 100 г готової страви</h3>
         <div class="nutbox"><div><b>${r0(n.per100.k)}</b><span>ккал</span></div><div><b>${r0(n.per100.p)}</b><span>білки</span></div><div><b>${r0(n.per100.f)}</b><span>жири</span></div><div><b>${r0(n.per100.c)}</b><span>вуглев.</span></div></div>
         <p class="hint"><b>1 порція ≈ ${r0(n.g)} г готової:</b> ${Nutrition.line(n)}</p>
-        <p class="hint">${n.method === "weighed" ? `Вага зважена: вся страва ${r0(+r.cookedG)} г.` : n.method === "raw" ? "Страва без термообробки — вага як у продуктів." : `${n.method === "boil" ? "Варіння" : "Запікання / смаження"}: вихід ≈ ${n.yieldPct} % від ваги сирих продуктів (${r0(n.gRaw)} г сирих на порцію → ${r0(n.g)} г готових). Зважиш готову страву — впиши вагу в «Редагувати», буде точніше.`}${n.per100raw && n.method !== "raw" ? ` На 100 г сирої суміші: ${r0(n.per100raw.k)} ккал.` : ""}</p>` : `<h3>КБЖУ на 1 порцію</h3>
+        <p class="hint">${n.method === "book" ? "КБЖУ з книги автора." : n.method === "weighed" ? `Вага зважена: вся страва ${r0(+r.cookedG)} г.` : n.method === "raw" ? "Страва без термообробки — вага як у продуктів." : `${n.method === "boil" ? "Варіння" : "Запікання / смаження"}: вихід ≈ ${n.yieldPct} % від ваги сирих продуктів (${r0(n.gRaw)} г сирих на порцію → ${r0(n.g)} г готових). Зважиш готову страву — впиши вагу в «Редагувати», буде точніше.`}${n.per100raw && n.method !== "raw" ? ` На 100 г сирої суміші: ${r0(n.per100raw.k)} ккал.` : ""}</p>` : `<h3>КБЖУ на 1 порцію</h3>
         <div class="nutbox"><div><b>${r0(n.k)}</b><span>ккал</span></div><div><b>${r0(n.p)}</b><span>білки</span></div><div><b>${r0(n.f)}</b><span>жири</span></div><div><b>${r0(n.c)}</b><span>вуглев.</span></div></div>`}
         ${n.missing.length ? `<p class="hint">Без даних для: ${esc(n.missing.join(", "))} — цифри неповні. Можна вписати КБЖУ вручну в «Редагувати».</p>` : `<p class="hint">Приблизно, ±15 %. Порції: ${S.people.map(x => `${esc(x.name)} ×${N(+x.w || 1)}`).join(", ")}.</p>`}
       </div>
