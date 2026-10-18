@@ -174,9 +174,12 @@ async function viaKey(key, prompt, imgs, ytLink, useUrl) {
   const parts = [{ text: prompt }, ...imgs.map(i => ({ inline_data: { mime_type: i.mime, data: i.data } }))];
   if (ytLink) parts.push({ file_data: { file_uri: ytLink } });
   const body = { contents: [{ role: "user", parts }], ...(useUrl ? { tools: [{ url_context: {} }] } : {}) };
-  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent", {
+  const call = () => fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent", {
     method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body)
   });
+  let r = await call();
+  // Gemini іноді тимчасово перевантажений — пробуємо ще раз
+  if (r.status === 503 || r.status === 500) { await new Promise(res => setTimeout(res, 2000)); r = await call(); }
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`${r.status} ${(d.error && (d.error.status + " " + d.error.message)) || ""}`);
   return ((d.candidates || [])[0]?.content?.parts || []).map(p => p.text || "").join("");
