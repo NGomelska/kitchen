@@ -997,7 +997,7 @@
           ? `<button class="chip small" data-me="restore" data-m="${m}">↺ Повернути з меню</button>`
           : `<button class="chip small" data-me="rep" data-m="${m}">Їла інше</button><button class="chip small" data-me="skip" data-m="${m}">Не їла</button>`) : ""}</div>`;
       if (ME.rep === m) h += `<div class="card stack meadd">
-          <h3>Що їла замість «${label.toLowerCase()}»?</h3>
+          <h3>Що їла замість цього?</h3>
           <div class="meq"><input type="text" id="repT" placeholder="напр.: бургер з картоплею з доставки, з'їла половину" value="${esc(ME.repText || "")}"><label class="btn ghost small mecam" aria-label="Фото">📷<input type="file" id="repImg" accept="image/*" multiple hidden></label></div>
           <p class="hint" id="repFiles"></p>
           <div class="pbtns"><button class="btn green" data-me="repEst"${ME.repBusy ? " disabled" : ""}>${ME.repBusy ? "Рахую…" : "Порахувати"}</button><button class="btn ghost" data-me="repCancel">Скасувати</button></div>
