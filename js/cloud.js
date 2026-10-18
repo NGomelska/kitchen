@@ -133,7 +133,7 @@ ${(text || "—").slice(0, 8000)}`;
     console.error(e);
     const msg = String(e && e.message);
     const err = new Error("gemini");
-    err.userMessage = /quota|429|RESOURCE_EXHAUSTED/i.test(msg) ? "Ліміт Gemini на сьогодні вичерпано. Спробуй завтра або заповни вручну."
+    err.userMessage = isMoney(msg) ? MONEY_MSG : /quota|429|RESOURCE_EXHAUSTED/i.test(msg) ? "Ліміт Gemini на сьогодні вичерпано. Спробуй завтра або заповни вручну."
       : /genai config|API key|API_KEY|403|401/i.test(msg) ? "Gemini ще не підключений: встав ключ у «Ще → Ключ Gemini»."
       : yt ? "Не вдалося переглянути відео. Встав текст з опису або скриншот." : "Не вдалося розібрати. Додай скриншот або текст з опису.";
     throw err;
@@ -162,7 +162,7 @@ async function estimateFood(AI, ai, { text, images, grams, key }) {
       raw = (await AI.getGenerativeModel(ai, { model: "gemini-flash-latest" }).generateContent({ contents: [{ role: "user", parts }] })).response.text();
     }
   } catch (e) {
-    const err = new Error("gemini"); err.userMessage = /quota|429|RESOURCE_EXHAUSTED/i.test(String(e && e.message)) ? "Ліміт Gemini на сьогодні вичерпано." : "Не вийшло порахувати. Впиши цифри вручну."; throw err;
+    const err = new Error("gemini"); err.userMessage = isMoney(e && e.message) ? MONEY_MSG : /quota|429|RESOURCE_EXHAUSTED/i.test(String(e && e.message)) ? "Ліміт Gemini на сьогодні вичерпано." : "Не вийшло порахувати. Впиши цифри вручну."; throw err;
   }
   const m = String(raw || "").match(/\{[\s\S]*\}/);
   if (!m) { const err = new Error("no json"); err.userMessage = "Gemini не зміг оцінити. Впиши цифри вручну."; throw err; }
@@ -185,6 +185,9 @@ async function viaKey(key, prompt, imgs, ytLink, useUrl) {
   if (!r.ok) throw new Error(`${r.status} ${(d.error && (d.error.status + " " + d.error.message)) || ""}`);
   return ((d.candidates || [])[0]?.content?.parts || []).map(p => p.text || "").join("");
 }
+/* баланс Gemini закінчився або спрацював ліміт витрат — це рішення Надії: поповнити чи перейти на безкоштовний */
+const MONEY_MSG = "Гроші на балансі Gemini закінчились (або спрацював ліміт витрат). Час вирішити: поповнити в AI Studio чи відв'язати оплату й перейти на безкоштовний варіант. Напиши Claude.";
+const isMoney = msg => /^40[23] |prepayment|credits are depleted|Spend cap/i.test(String(msg || ""));
 function b64(file) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(file); });
 }
