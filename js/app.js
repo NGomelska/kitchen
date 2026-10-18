@@ -711,6 +711,8 @@
       if (act === "pkSave") return savePicker(false);
       if (act === "pkSaveNext") return savePicker(true);
     }
+    if (MP && act === "mpGo") { runPlan(); return; }
+    if (MP && act === "mpSave") { savePlan(); return; }
     if (act === "planAdd") {
       const rows = JSON.parse($("#sheet").dataset.plan || "[]");
       const picked = [...document.querySelectorAll("#planRows input:checked")].map(i => rows[+i.dataset.n]);
@@ -1152,6 +1154,104 @@
       if (ok) { ME.est = null; ME.text = ""; ME.note = ""; toast(`Додала: ${item.t}`); renderMe(); }
     }
   });
+
+
+  /* ---------- Скласти меню з Gemini ---------- */
+  let MP = null;
+  function firstFreeDay() { let d = addDays(todayKey(), 1); for (let i = 0; i < 30 && S.slots.some(s => s.date === d); i++) d = addDays(d, 1); return d; }
+  function openPlan() {
+    MP = MP || { start: firstFreeDay(), days: 7, text: "", res: null, busy: false, note: "" };
+    drawPlan();
+  }
+  function planPrompt(start, days, text) {
+    const people = S.people.map(x => `${x.id} = ${x.name} (порція ×${N(+x.w || 1)})`).join("; ");
+    const tl = tryList();
+    const line = r => { const n = nutOf(r); return `${r.id}|${r.title}|${r.simple ? "простий гарнір/додаток" : catOf(r)}|${GROUPS[r.group] || "страва"}|${(r.tags || []).join(",")}|${r0(n.k)} ккал, Б ${r0(n.p)}${r.time && r.time.total ? `|${r.time.total} хв` : ""}${r.src ? "|книга" : ""}${tl.includes(r.id) ? "|ХОЧУ СПРОБУВАТИ" : ""}`; };
+    const stock = S.items.filter(i => i.staple && !i.need).map(i => i.name).join(", ");
+    const dates = Array.from({ length: days }, (_, i) => { const d = addDays(start, i); return `${d} (${WDF[toDate(d).getDay()]})`; }).join(", ");
+    const recent = S.slots.filter(s => s.date >= addDays(start, -7) && s.date < start).flatMap(s => (s.dishes || []).map(d => recipe(d.rid)?.title)).filter(Boolean);
+    const before = S.slots.filter(s => s.date === addDays(start, -1)).flatMap(s => (s.dishes || []).filter(d => !d.left).map(d => `${s.meal}: ${recipe(d.rid)?.title} (${d.rid})`));
+    return `Склади меню для родини на дні: ${dates}.
+Прийоми їжі: b — сніданок, l — обід, d — вечеря, x — перекус/десерт. Люди (id для поля who): ${people}.
+
+Про родину (обов'язково дотримуйся):
+${S.profile || "—"}
+
+Правила складання:
+- Використовуй ТІЛЬКИ рецепти зі списку нижче (поле rid — точний id). Прості гарніри/додатки теж зі списку.
+- Насамперед — те, що є в холодильнику (фото й текст) і в запасах, щоб нічого не зіпсувалось.
+- Додай 2–3 НОВІ страви на тиждень: спершу з позначкою «ХОЧУ СПРОБУВАТИ», далі з книги. Не повторюй страви з минулого тижня, якщо можна.
+- Готуй раз — їж двічі: велику страву на вечерю став ще на обід наступного дня з "left": true.
+- У будні на готування ввечері не більше 40 хв активної роботи; складніше — на вихідні.
+- Сніданок Надії щодня має яєчні білки + 1 яйце (рецепт з білками або «Омлет з білків + 1 яйце»). Миколі сніданок — його кайзерка; обід він зазвичай пропускає. Петрові обід щодня, без еритритолу.
+- Кожна людина отримує збалансовану миску: білок + гарнір/база + овочі.
+- В "shop" — лише те, чого, судячи з фото/запасів, найімовірніше нема і що треба для цього меню; коротко, з кількістю.
+
+Що вже є в запасах: ${stock || "—"}.
+Минулого тижня їли: ${[...new Set(recent)].join(", ") || "—"}.
+Учора готували (можуть бути залишки): ${before.join("; ") || "—"}.
+Побажання й що в холодильнику словами: ${text || "—"}
+
+Поверни ТІЛЬКИ JSON:
+{"slots":[{"date":"YYYY-MM-DD","meal":"b|l|d|x","dishes":[{"rid":"...","who":["me","dad","kid"],"left":false}]}],"shop":[{"name":"Курячі стегенця","amount":"1 кг"}],"note":"2–3 речення: що використала з холодильника і що нового"}
+
+Рецепти (id|назва|категорія|група|теги|КБЖУ на порцію|час):
+${S.recipes.map(line).join("\n")}`;
+  }
+  function drawPlan() {
+    const m = MP, end = addDays(m.start, m.days - 1);
+    const clash = S.slots.filter(s => s.date >= m.start && s.date <= end).length;
+    let h = `<div class="shhead"><button class="btn ghost small" data-act="close">← Назад</button><h2>Скласти меню</h2></div>
+      <div class="card stack" style="gap:10px">
+        <div class="person" style="grid-template-columns:1fr 1fr"><label class="fl">З якого дня<input type="date" id="mpStart" value="${m.start}"></label><label class="fl">Скільки днів<select id="mpDays">${[3, 4, 5, 7].map(n => `<option${n === m.days ? " selected" : ""}>${n}</option>`).join("")}</select></label></div>
+        <label class="fl">Фото холодильника, полиць (можна кілька)<input type="file" id="mpImg" accept="image/*" multiple></label>
+        <label class="fl">Що є, що треба доїсти, побажання<textarea id="mpText" rows="3" placeholder="напр.: є фарш і броколі, хочу щось з книги, у суботу гості">${esc(m.text)}</textarea></label>
+        ${clash ? `<p class="hint">⚠ На ці дні вже є ${clash} прийомів їжі — після підтвердження вони заміняться.</p>` : ""}
+        <button class="btn green wide" data-act="mpGo"${m.busy ? " disabled" : ""}>${m.busy ? "Складаю… (до хвилини)" : "✨ Скласти"}</button>
+        ${m.note ? `<p class="hint">${esc(m.note)}</p>` : ""}
+      </div>`;
+    if (m.res) {
+      const byDay = {};
+      for (const sl of m.res.slots) (byDay[sl.date] = byDay[sl.date] || []).push(sl);
+      h += `<div class="stack" style="gap:10px;margin-top:12px">${Object.keys(byDay).sort().map(d => `<div class="card"><h3 style="margin:0 0 6px">${WDF[toDate(d).getDay()]}, ${toDate(d).getDate()} ${MON[toDate(d).getMonth()]}</h3>${MEALS.filter(([mm]) => byDay[d].some(x => x.meal === mm)).map(([mm, label]) => `<div class="mprow"><b>${label}</b><span>${byDay[d].find(x => x.meal === mm).dishes.map(x => `${esc(recipe(x.rid).title)}${x.left ? " ↻" : ""} <small>${esc(S.people.filter(pp => x.who.includes(pp.id)).map(pp => pp.short || pp.name[0]).join(""))}</small>`).join(" · ")}</span></div>`).join("")}</div>`).join("")}
+        ${m.res.shop.length ? `<div class="card"><h3 style="margin:0 0 6px">Докупити</h3><div class="ing" id="mpShop">${m.res.shop.map((x, i) => `<label><input type="checkbox" data-n="${i}" checked><span style="flex:1">${esc(x.name)}</span><span class="q">${esc(x.amount || "")}</span></label>`).join("")}</div></div>` : ""}
+        <div class="pbtns"><button class="btn" data-act="mpSave">Записати в меню</button><button class="btn ghost" data-act="mpGo">Ще варіант</button></div>
+      </div>`;
+    }
+    openSheet(h);
+  }
+  async function runPlan() {
+    const m = MP;
+    m.start = $("#mpStart").value || m.start; m.days = +$("#mpDays").value || 7; m.text = $("#mpText").value.trim();
+    const images = [...$("#mpImg").files].slice(0, 4);
+    if (!window.AI || !window.AI.planMenu) { m.note = "Gemini ще не підключений (Ще → Ключ Gemini)."; drawPlan(); return; }
+    m.busy = true; m.note = ""; m.res = null; drawPlan();
+    try {
+      const j = await window.AI.planMenu({ prompt: planPrompt(m.start, m.days, m.text), images });
+      const end = addDays(m.start, m.days - 1), ids = S.people.map(x => x.id);
+      const slots = (j.slots || []).filter(sl => sl.date >= m.start && sl.date <= end && MEALS.some(([mm]) => mm === sl.meal)).map(sl => ({
+        date: sl.date, meal: sl.meal,
+        dishes: (sl.dishes || []).filter(d => recipe(d.rid)).map(d => ({ rid: d.rid, who: (d.who || []).filter(w => ids.includes(w)), ...(d.left ? { left: true } : {}) })).filter(d => d.who.length)
+      })).filter(sl => sl.dishes.length);
+      if (!slots.length) throw Object.assign(new Error("empty"), { userMessage: "Gemini повернув порожнє меню. Спробуй ще раз." });
+      m.res = { slots, shop: (j.shop || []).filter(x => x && x.name).map(x => ({ name: cap(String(x.name)), amount: String(x.amount || "") })) };
+      m.note = j.note || "";
+    } catch (e) { console.error(e); m.note = e && e.userMessage || "Не вийшло скласти меню. Спробуй ще раз."; }
+    m.busy = false;
+    if (MP === m && !$("#sheet").hidden) drawPlan();
+  }
+  async function savePlan() {
+    const m = MP; if (!m || !m.res) return;
+    const end = addDays(m.start, m.days - 1);
+    for (const sl of S.slots.filter(s => s.date >= m.start && s.date <= end)) await save(() => Store.del("slots", sl.id));
+    for (const sl of m.res.slots) await save(() => Store.set("slots", `${sl.date}_${sl.meal}`, sl));
+    const picked = [...document.querySelectorAll("#mpShop input:checked")].map(i => m.res.shop[+i.dataset.n]);
+    for (const x of picked) await addToList(x.name, x.amount);
+    S.day = m.start; S.weekStart = sundayOf(m.start);
+    MP = null; closeSheet(); go("menu"); renderSub(); renderMenu(); renderPrep();
+    toast(`Меню записане${picked.length ? `, у покупки: ${picked.length}` : ""}`);
+  }
+  $("#planMake").onclick = () => openPlan();
 
   renderTags();
   (async () => {

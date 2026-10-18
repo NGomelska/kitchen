@@ -62,7 +62,8 @@ export async function start({ config, emails, local, showLogin }) {
   const aiKey = () => (cache.settings.get("ai") || {}).geminiKey || "";
   window.AI = {
     parseRecipe: opts => parseRecipe(AI, ai, { ...opts, profile: (cache.settings.get("profile") || {}).text || "", key: aiKey() }),
-    estimateFood: opts => estimateFood(AI, ai, { ...opts, key: aiKey() })
+    estimateFood: opts => estimateFood(AI, ai, { ...opts, key: aiKey() }),
+    planMenu: opts => planMenu({ ...opts, key: aiKey() })
   };
 
   return {
@@ -169,6 +170,21 @@ async function estimateFood(AI, ai, { text, images, grams, key }) {
   const j = JSON.parse(m[0]);
   for (const k of ["grams", "k", "p", "f", "c"]) j[k] = +j[k] || 0;
   return j;
+}
+/* меню на кілька днів: фото холодильника + побажання + усе, що знаємо про родину й рецепти */
+async function planMenu({ prompt, images, key }) {
+  if (!key) { const err = new Error("no key"); err.userMessage = "Gemini ще не підключений: встав ключ у «Ще → Ключ Gemini»."; throw err; }
+  const imgs = [];
+  for (const f of images || []) imgs.push({ mime: f.type || "image/jpeg", data: await b64(f) });
+  let raw;
+  try { raw = await viaKey(key, prompt, imgs, "", false); }
+  catch (e) {
+    console.error(e);
+    const err = new Error("gemini"); err.userMessage = isMoney(e && e.message) ? MONEY_MSG : /quota|429|RESOURCE_EXHAUSTED/i.test(String(e && e.message)) ? "Ліміт Gemini вичерпано, спробуй трохи пізніше." : "Gemini не відповів. Спробуй ще раз."; throw err;
+  }
+  const m = String(raw || "").match(/\{[\s\S]*\}/);
+  if (!m) { const err = new Error("no json"); err.userMessage = "Gemini не склав меню. Спробуй ще раз."; throw err; }
+  return JSON.parse(m[0]);
 }
 /* прямий виклик Gemini API власним ключем (ключ лежить у закритих даних родини, не в коді) */
 async function viaKey(key, prompt, imgs, ytLink, useUrl) {

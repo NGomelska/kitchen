@@ -270,3 +270,7 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .leftbar select{flex:1;min-width:0}
 .heart{font-size:1.15rem;min-width:44px}
 .heart.on{color:var(--protein)}
+.mprow{display:grid;grid-template-columns:76px 1fr;gap:8px;padding:4px 0;border-top:1px dashed var(--line);font-size:.86rem}
+.mprow:first-of-type{border-top:0}
+.mprow small{color:var(--ink-soft);font-weight:800}
+#planMake{margin-bottom:10px}
