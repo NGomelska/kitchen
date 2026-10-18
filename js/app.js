@@ -593,8 +593,7 @@
       <div class="group"><span class="fl">Для кого</span><div class="chips" id="fTags"></div></div>
       <label class="fl">На скільки порцій рецепт<input type="number" id="fServ" min="0.5" step="0.5" value="${esc(r ? r.servings || 4 : 4)}"></label>
       <label class="fl">Інгредієнти <span class="hint">Кожен з нового рядка: «700 г фарш з індички», «2 шт яйця», «сіль — за смаком»</span><textarea id="fIng" rows="7">${esc(ingText)}</textarea></label>
-      <label class="fl">Підготовка заздалегідь <span class="hint">Кожна справа з нового рядка: «напередодні: замаринувати курку (10 хв)», «зранку: …», «вдень: …», «за 30 хв: котлети в аерогриль (2 хв)»</span><textarea id="fPrep" rows="4">${esc(r ? (r.prep || []).map(prepLine).join("
-") : "")}</textarea></label>
+      <label class="fl">Підготовка заздалегідь <span class="hint">Кожна справа з нового рядка: «напередодні: замаринувати курку (10 хв)», «зранку: …», «вдень: …», «за 30 хв: котлети в аерогриль (2 хв)»</span><textarea id="fPrep" rows="4">${esc(r ? (r.prep || []).map(prepLine).join("\n") : "")}</textarea></label>
       <label class="fl">Як готувати <span class="hint">Кожен крок з нового рядка</span><textarea id="fSteps" rows="6">${esc(r ? (r.steps || []).join("\n") : "")}</textarea></label>
       <label class="fl">Порада для мене / для сина<textarea id="fTip" rows="3">${esc(r ? r.tip || "" : "")}</textarea></label>
       <div class="group"><span class="fl">КБЖУ на порцію вручну <span class="hint">Необов'язково: якщо заповнити, застосунок не рахуватиме сам</span></span>
@@ -652,8 +651,7 @@
       if (j.ingredients && j.ingredients.length) $("#fIng").value = j.ingredients.map(Portions.lineOf).join("\n");
       if (j.steps && j.steps.length) $("#fSteps").value = j.steps.join("\n");
       if (j.tip) $("#fTip").value = j.tip;
-      if (Array.isArray(j.prep) && j.prep.length) $("#fPrep").value = j.prep.filter(x => x && x.t).map(x => prepLine({ t: String(x.t), when: ["eve", "morn", "day", "pre"].includes(x.when) ? x.when : "pre", before: +x.before || 30, min: +x.min || null })).join("
-");
+      if (Array.isArray(j.prep) && j.prep.length) $("#fPrep").value = j.prep.filter(x => x && x.t).map(x => prepLine({ t: String(x.t), when: ["eve", "morn", "day", "pre"].includes(x.when) ? x.when : "pre", before: +x.before || 30, min: +x.min || null })).join("\n");
       for (const t of j.tags || []) if (TAGS.includes(t)) F.tags.add(t);
       drawFormTags(); st.textContent = "Готово. Перевір і збережи.";
     } catch (e) { console.error(e); st.textContent = e && e.userMessage || "Не вийшло розібрати. Додай скриншот або заповни вручну."; }
