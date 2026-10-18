@@ -935,7 +935,7 @@
   /* ---------- старт ---------- */
 
   /* ---------- Я: мій раціон (тільки для Надії, інших не рахуємо) ---------- */
-  const ME = { day: null, est: null, busy: false, rep: null, repEst: null, repNote: "", repBusy: false };
+  const ME = { edit: null, day: null, est: null, busy: false, rep: null, repEst: null, repNote: "", repBusy: false };
   const eaten = xs => xs.filter(x => !x.skip);
   const meP = () => person("me") || S.people[0];
   function meItems(date, pid) {
@@ -949,7 +949,7 @@
         const f = adj[`${m}_${d.rid}`] ?? 1;
         if (!f) { out.push({ meal: m, t: r.title, rid: r.id, skip: true, k: 0, p: 0, f: 0, c: 0 }); continue; }
         const x = nutOf(r);
-        const n = scaleN(x, w * f); out.push({ meal: m, t: r.title, rid: r.id, por: f, g: (x.g || 0) * w * f, k: n.k, p: n.p, f: n.f, c: n.c });
+        const n = scaleN(x, w * f); out.push({ meal: m, t: r.title, rid: r.id, por: f, base: (x.g || 0) * w, g: (x.g || 0) * w * f, k: n.k, p: n.p, f: n.f, c: n.c });
       }
       for (const e of doc.extra || []) if (e.meal === m) out.push({ ...e, extra: true });
     }
@@ -960,6 +960,13 @@
     doc.adj = doc.adj || {}; doc.extra = doc.extra || [];
     fn(doc);
     return save(() => Store.set("meta", id, doc));
+  }
+  const PORS = [[0.5, "½"], [0.75, "¾"], [1, "1"], [1.25, "1¼"], [1.5, "1½"], [2, "2"]];
+  function porRow(x, m) {
+    const key = `${m}_${x.rid}`, open = ME.edit === key;
+    return `<div class="row eatrow tap${open ? " open" : ""}" data-me="por" data-k="${esc(key)}"><span class="nm">${esc(x.t)}${x.por !== 1 ? ` <b class="por">×${+x.por.toFixed(2)}</b>` : ""}<span class="src">${x.g ? `${r0(x.g)} г · ` : ""}${r0(x.k)} ккал · Б ${r0(x.p)} · Ж ${r0(x.f)} · У ${r0(x.c)}</span></span><span class="pen" aria-hidden="true">✎</span></div>
+      ${open ? `<div class="poredit"><div class="chips">${PORS.map(([v, l]) => `<button class="chip small${Math.abs(v - x.por) < 0.01 ? " on" : ""}" data-me="porSet" data-k="${esc(key)}" data-v="${v}">${l}</button>`).join("")}</div>
+        ${x.base ? `<div class="meq"><input type="number" id="porG" min="0" step="10" inputmode="numeric" placeholder="або грамів" value="${r0(x.g)}"><span class="hint">г (порція з меню ≈${r0(x.base)} г)</span><button class="btn small" data-me="porG" data-k="${esc(key)}" data-b="${x.base}">OK</button></div>` : ""}</div>` : ""}`;
   }
   function renderMe() {
     const box = $("#meBox"); if (!box || !S.people.length) return;
@@ -992,7 +999,9 @@
       const skipped = menuXs.length && menuXs.every(x => x.skip);
       h += `<div class="group"><h3>${label} <small>${r0(n.k)} ккал · Б ${r0(n.p)}</small></h3><div class="list">${xs.map(x => x.skip
         ? `<div class="row eatrow skip"><span class="nm">${esc(x.t)}<span class="src">не їла</span></span></div>`
-        : `<div class="row eatrow"><span class="nm">${esc(x.t)}${x.por && x.por !== 1 ? ` ×${x.por}` : ""}<span class="src">${x.g ? `${r0(x.g)} г · ` : ""}${r0(x.k)} ккал · Б ${r0(x.p)} · Ж ${r0(x.f)} · У ${r0(x.c)}</span></span>${x.extra ? `<button class="x" data-me="del" data-id="${esc(x.id)}" aria-label="Прибрати">×</button>` : ""}</div>`).join("")}</div>
+        : x.extra
+        ? `<div class="row eatrow"><span class="nm">${esc(x.t)}<span class="src">${x.g ? `${r0(x.g)} г · ` : ""}${r0(x.k)} ккал · Б ${r0(x.p)} · Ж ${r0(x.f)} · У ${r0(x.c)}</span></span><button class="x" data-me="del" data-id="${esc(x.id)}" aria-label="Прибрати">×</button></div>`
+        : porRow(x, m)).join("")}</div>
         <div class="mealacts">${menuXs.length ? (skipped
           ? `<button class="chip small" data-me="restore" data-m="${m}">↺ Повернути з меню</button>`
           : `<button class="chip small" data-me="rep" data-m="${m}">Їла інше</button><button class="chip small" data-me="skip" data-m="${m}">Не їла</button>`) : ""}</div>`;
@@ -1033,6 +1042,10 @@
     if (act === "next") { if (ME.day < tk) ME.day = addDays(ME.day, 1); ME.est = null; renderMe(); return; }
     if (act === "day") { ME.day = b.dataset.d; renderMe(); return; }
     if (act === "full") { openEat(ME.day, p.id); return; }
+    if (act === "por") { ME.edit = ME.edit === b.dataset.k ? null : b.dataset.k; renderMe(); return; }
+    const setPor = (k, v) => meWrite(ME.day, p.id, d => { if (Math.abs(v - 1) < 0.001) delete d.adj[k]; else d.adj[k] = Math.round(v * 100) / 100; });
+    if (act === "porSet") { ME.edit = null; setPor(b.dataset.k, +b.dataset.v); return; }
+    if (act === "porG") { const g = +$("#porG").value, base = +b.dataset.b; if (!(g >= 0) || !base) { toast("Впиши грами."); return; } ME.edit = null; setPor(b.dataset.k, g / base); return; }
     const mealRids = m => { const sl = slotOf(ME.day, m); return (sl ? sl.dishes || [] : []).filter(d => (d.who || []).includes(p.id)).map(d => d.rid); };
     if (act === "skip") { const m = b.dataset.m; meWrite(ME.day, p.id, d => { for (const rid of mealRids(m)) d.adj[`${m}_${rid}`] = 0; }); return; }
     if (act === "restore") { const m = b.dataset.m; meWrite(ME.day, p.id, d => { for (const rid of mealRids(m)) delete d.adj[`${m}_${rid}`]; }); return; }
@@ -1106,7 +1119,7 @@
       }
       renderSub(); renderMenu(); renderPrep();
       if (EAT && !$("#sheet").hidden && !EAT.form) drawEat();
-      if (!ME.busy && !ME.repBusy && !["meT", "repT"].includes(document.activeElement?.id) && !ME.rep) renderMe();
+      if (!ME.busy && !ME.repBusy && !["meT", "repT", "porG"].includes(document.activeElement?.id) && !ME.rep) renderMe();
     });
     Store.sub("settings", d => {
       const p = d.find(x => x.id === "people"); if (p && Array.isArray(p.list)) S.people = p.list;

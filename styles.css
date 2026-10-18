@@ -257,3 +257,11 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .eatrow.skip .nm{text-decoration:line-through;color:var(--ink-soft)}
 .eatrow.skip .src{text-decoration:none}
 #meBox .group .meadd{margin-top:8px}
+.eatrow.tap{cursor:pointer}
+.eatrow .pen{color:var(--ink-soft);font-size:.9rem;padding-left:8px}
+.eatrow.open{background:var(--paper-2)}
+.eatrow .por{color:var(--protein)}
+.poredit{padding:8px 12px 12px;display:grid;gap:8px;background:var(--paper-2);border-top:1px dashed var(--line)}
+.poredit .meq{align-items:center}
+.poredit input{max-width:110px}
+.poredit .hint{flex:1;font-size:.75rem}
