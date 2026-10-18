@@ -1,6 +1,6 @@
 /* Щоб застосунок відкривався і без інтернету (дані — окремо, у сховищі). */
-const CACHE = "kitchen-v12";
-const SHELL = ["./", "index.html", "styles.css", "manifest.webmanifest", "js/portions.js", "js/nutrition.js", "js/seed.js", "js/firebase-config.js", "js/store.js", "js/cloud.js", "js/app.js", "icons/icon-192.png"];
+const CACHE = "kitchen-v13";
+const SHELL = ["./", "index.html", "styles.css", "manifest.webmanifest", "js/portions.js", "js/nutrition.js", "js/art.js", "js/seed.js", "js/firebase-config.js", "js/store.js", "js/cloud.js", "js/app.js", "icons/icon-192.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

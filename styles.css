@@ -116,7 +116,7 @@ details.note p{margin:8px 0 0}
 .rectools input{flex:1}
 .reclist{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
 .rec{display:flex;gap:12px;align-items:center;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:10px;text-align:left;width:100%;color:var(--ink)}
-.rec .th{flex:none;width:60px;height:60px;border-radius:14px;object-fit:cover}
+.rec .th{flex:none;width:60px;height:60px;display:block}
 .rec .meta{min-width:0;display:flex;flex-direction:column;gap:4px}
 .rec .t{font-weight:700;overflow-wrap:anywhere}
 .rec .nut{font-size:.75rem;color:var(--ink-soft);font-variant-numeric:tabular-nums}
@@ -200,3 +200,12 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .row.ptask .tick{margin-top:-6px}
 .pcount{font-style:normal;font-size:.66rem;font-weight:800;color:var(--protein);line-height:1}
 .dayc.on .pcount{color:var(--paper)}
+
+/* recipe art */
+.hero{display:flex;justify-content:center;margin:-4px 0 2px}
+.photorow{display:flex;gap:14px;align-items:center}
+.cropper{position:fixed;inset:0;z-index:60;background:rgba(20,15,10,.6);display:grid;place-items:center;padding:16px}
+.crop-in{background:var(--paper);border-radius:22px;padding:16px;width:min(420px,100%);display:flex;flex-direction:column;gap:12px}
+.crop-stage{position:relative;width:100%;aspect-ratio:1/1;max-width:100%;touch-action:none}
+.crop-stage canvas{width:100%;height:100%;border-radius:14px;display:block;touch-action:none;cursor:grab;background:#222}
+.crop-in input[type=range]{width:100%;accent-color:var(--accent)}

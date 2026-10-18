@@ -12,7 +12,7 @@
     [/папір|мило|шампун|порош|губк|пакет|засіб|підгуз|серветк|фольг|зубн/i, "Дім і гігієна"]
   ];
   const TAGS = ["Сім'я", "Для мене", "Син їсть", "Десерт", "Швидко"];
-  const RCATS = ["Сніданки", "М'ясні страви", "Рибні страви", "Гарніри", "Салати й овочі", "Закуски", "Супи", "ПП-десерти", "Десерти", "Випічка", "Соуси", "Інше"];
+  const RCATS = ["Сніданки", "Супи", "М'ясні страви", "Рибні страви", "Гарніри", "Салати й овочі", "Закуски", "Дитячі страви", "ПП-десерти", "Десерти", "Випічка", "Соуси", "Інше"];
   /* категорія рецепта: вибрана вручну, а якщо ні — здогадка з групи страви */
   const catOf = r => {
     if (r.cat && RCATS.includes(r.cat)) return r.cat;
@@ -378,7 +378,7 @@
     const sel = new Set(P.dishes.map(d => d.rid));
     $("#pkGrid").innerHTML = arr.length ? arr.map(r => {
       const n = nutOf(r);
-      return `<button class="dish${sel.has(r.id) ? " sel" : ""}" data-act="pkT" data-rid="${esc(r.id)}">${bowl([GROUPS[r.group] ? r.group : "dish"], 36)}<span class="nm">${esc(r.title)}</span><span class="nut">${n.per100 ? `100 г: ${r0(n.per100.k)} ккал · Б ${r0(n.per100.p)}` : n.k ? `${r0(n.k)} ккал · Б ${r0(n.p)} на порцію` : ""}</span></button>`;
+      return `<button class="dish${sel.has(r.id) ? " sel" : ""}" data-act="pkT" data-rid="${esc(r.id)}">${Art.bowl(r, catOf(r), 44)}<span class="nm">${esc(r.title)}</span><span class="nut">${n.per100 ? `100 г: ${r0(n.per100.k)} ккал · Б ${r0(n.per100.p)}` : n.k ? `${r0(n.k)} ккал · Б ${r0(n.p)} на порцію` : ""}</span></button>`;
     }).join("") : `<p class="empty" style="grid-column:1/-1">Нічого не знайшла. Додай просту страву нижче.</p>`;
   }
   function drawPkSimple() {
@@ -458,7 +458,7 @@
     if (!arr.length) { el.innerHTML = `<p class="empty">Нічого не знайшла. Спробуй інше слово чи тег.</p>`; return; }
     const card = r => {
       const n = nutOf(r);
-      return `<button class="rec" data-id="${esc(r.id)}">${r.thumb ? `<img class="th" src="${esc(r.thumb)}" alt="">` : `<span class="th">${bowl([GROUPS[r.group] ? r.group : "dish"], 60)}</span>`}<span class="meta"><span class="t">${esc(r.title)}</span><span class="nut">${n.per100 ? `на 100 г: ${Nutrition.line(n.per100)}` : n.k ? `на порцію: ${Nutrition.line(n)}` : ""}</span><span class="tags">${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</span></span></button>`;
+      return `<button class="rec" data-id="${esc(r.id)}"><span class="th">${Art.bowl(r, catOf(r), 60)}</span><span class="meta"><span class="t">${esc(r.title)}</span><span class="nut">${n.per100 ? `на 100 г: ${Nutrition.line(n.per100)}` : n.k ? `на порцію: ${Nutrition.line(n)}` : ""}</span><span class="tags">${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</span></span></button>`;
     };
     // «Усі» — розкладено по категоріях з заголовками
     if (S.rcat === "all" && !S.q) {
@@ -488,7 +488,8 @@
     <div class="stack" data-rid="${esc(r.id)}">
       <h2 style="font-size:2rem">${esc(r.title)}</h2>
       <div class="tags"><span class="pill">${esc(catOf(r))}</span><span class="pill"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i> ${esc(GROUPS[r.group] || "Ціла страва")}</span>${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
-      ${r.thumb ? `<img class="bigimg" src="${esc(r.thumb)}" alt="Фото рецепта">` : ""}
+      <div class="hero">${Art.bowl(r, catOf(r), 132)}</div>
+      ${r.thumb ? `<details class="note"><summary>Скриншот рецепта</summary><img class="bigimg" style="margin-top:8px" src="${esc(r.thumb)}" alt="Скриншот рецепта"></details>` : ""}
       ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">Відкрити оригінал ↗</a>` : ""}
       <div class="card stack" style="gap:8px">${n.per100 ? `<h3>КБЖУ на 100 г</h3>
         <div class="nutbox"><div><b>${r0(n.per100.k)}</b><span>ккал</span></div><div><b>${r0(n.per100.p)}</b><span>білки</span></div><div><b>${r0(n.per100.f)}</b><span>жири</span></div><div><b>${r0(n.per100.c)}</b><span>вуглев.</span></div></div>
@@ -576,7 +577,7 @@
   /* форма рецепта */
   let F = null;
   function openForm(r, prefill) {
-    F = { id: r ? r.id : null, thumb: r ? r.thumb || "" : "", files: [], tags: new Set(r ? r.tags || [] : []) };
+    F = { id: r ? r.id : null, thumb: r ? r.thumb || "" : "", photo: r ? r.photo || "" : "", files: [], tags: new Set(r ? r.tags || [] : []), r };
     const ingText = r ? (r.ingredients || []).map(Portions.lineOf).join("\n") : "";
     const nu = (r && r.nutr) || {};
     openSheet(`<div class="shhead"><button class="btn ghost small" data-act="close">← Назад</button><h2>${r ? "Редагувати" : "Новий рецепт"}</h2></div>
@@ -588,6 +589,12 @@
       <div class="parse"><button class="btn ghost" type="button" id="fParse">Розібрати рецепт</button><span class="state" id="fState"></span></div>
       <hr>
       <label class="fl">Назва<input type="text" id="fTitle" value="${esc(r ? r.title : "")}"></label>
+      <div class="group"><span class="fl">Фото страви <span class="hint">Кругле, в мисці. Без фото — іконка категорії.</span></span>
+        <div class="photorow"><span id="fBowl"></span><div class="stack" style="gap:6px;flex:1">
+          <label class="btn ghost small" style="text-align:center">Додати фото<input type="file" id="fPhoto" accept="image/*" hidden></label>
+          <button class="btn ghost small" type="button" id="fCropShot">Вирізати зі скриншота</button>
+          <button class="btn ghost small" type="button" id="fNoPhoto">Без фото</button>
+        </div></div></div>
       <label class="fl">Категорія<select id="fCat">${RCATS.map(c => `<option${c === (r ? catOf(r) : (prefill && prefill.cat) || "Інше") ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
       <label class="fl">Що це в мисці<select id="fGroup">${GKEYS.map(k => `<option value="${k}"${k === ((r && r.group) || "dish") ? " selected" : ""}>${GROUPS[k]}</option>`).join("")}</select></label>
       <div class="group"><span class="fl">Для кого</span><div class="chips" id="fTags"></div></div>
@@ -600,16 +607,36 @@
         <div class="nutbox"><input type="number" id="nK" placeholder="ккал" value="${esc(nu.k ?? "")}"><input type="number" id="nP" placeholder="Б" value="${esc(nu.p ?? "")}"><input type="number" id="nF" placeholder="Ж" value="${esc(nu.f ?? "")}"><input type="number" id="nC" placeholder="У" value="${esc(nu.c ?? "")}"></div></div>
       <button class="btn" type="button" id="fSave">Зберегти рецепт</button>
     </div>`);
-    drawFormTags(); drawThumbs();
+    drawFormTags(); drawThumbs(); drawPhoto();
+    $("#fCat").onchange = drawPhoto; $("#fGroup").onchange = drawPhoto;
+    $("#fPhoto").onchange = async () => {
+      const f = $("#fPhoto").files[0]; $("#fPhoto").value = ""; if (!f) return;
+      const u = URL.createObjectURL(f); const out = await Art.crop(u); URL.revokeObjectURL(u);
+      if (out) { F.photo = out; drawPhoto(); }
+    };
+    $("#fCropShot").onclick = async () => {
+      let src = F.thumb, u = null;
+      if (F.files[0]) { u = URL.createObjectURL(F.files[0]); src = u; }
+      if (!src) { toast("Спершу додай скриншот вище або фото."); return; }
+      const out = await Art.crop(src); if (u) URL.revokeObjectURL(u);
+      if (out) { F.photo = out; drawPhoto(); }
+    };
+    $("#fNoPhoto").onclick = () => { F.photo = ""; drawPhoto(); };
     $("#fImg").onchange = async () => {
       const fs = [...$("#fImg").files]; $("#fImg").value = "";
       F.files.push(...fs);
       if (!F.thumb && fs[0]) F.thumb = await makeThumb(fs[0]);
-      drawThumbs();
+      drawThumbs(); drawPhoto();
     };
     $("#fTags").onclick = ev => { const b = ev.target.closest("[data-tag]"); if (!b) return; const t = b.dataset.tag; F.tags.has(t) ? F.tags.delete(t) : F.tags.add(t); drawFormTags(); };
     $("#fParse").onclick = parseRecipe;
     $("#fSave").onclick = saveRecipe;
+  }
+  function drawPhoto() {
+    const el = $("#fBowl"); if (!el) return;
+    el.innerHTML = Art.bowl({ photo: F.photo, group: $("#fGroup").value }, $("#fCat").value, 96);
+    $("#fCropShot").hidden = !(F.files.length || F.thumb);
+    $("#fNoPhoto").hidden = !F.photo;
   }
   function drawFormTags() { $("#fTags").innerHTML = TAGS.map(t => `<button type="button" class="chip${F.tags.has(t) ? " on" : ""}" data-tag="${esc(t)}">${esc(t)}</button>`).join(""); }
   function drawThumbs() {
@@ -668,7 +695,7 @@
       title, cat: $("#fCat").value, group: $("#fGroup").value, tags: [...F.tags], servings: Math.max(0.5, +$("#fServ").value || 4),
       ingredients: lines($("#fIng").value).map(Portions.parseLine).filter(Boolean).map(i => ({ ...i, name: cap(i.name) })),
       steps: lines($("#fSteps").value), prep: lines($("#fPrep").value).map(parsePrep).filter(Boolean), tip: $("#fTip").value.trim(), link: $("#fLink").value.trim(),
-      thumb: F.thumb || "", simple: !!(old && old.simple), updatedAt: Date.now(),
+      thumb: F.thumb || "", photo: F.photo || "", simple: !!(old && old.simple), updatedAt: Date.now(),
       nutr: nutr.some(v => v != null) ? { k: nutr[0] || 0, p: nutr[1] || 0, f: nutr[2] || 0, c: nutr[3] || 0 } : null
     };
     const id = F.id || Store.newId("r");

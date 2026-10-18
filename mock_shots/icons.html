@@ -1,0 +1,9 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>body{padding:16px}.g{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;text-align:center;font:600 12px Manrope,sans-serif}</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs><filter id="pencil"><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="2.2"/></filter></defs></svg>
+<div class="g" id="g"></div>
+<script src="../js/art.js"></script>
+<script>
+const G={"Сніданки":"dish","Супи":"dish","М'ясні страви":"protein","Рибні страви":"protein","Гарніри":"base","Салати й овочі":"veg","Закуски":"sauce","Дитячі страви":"sweet","ПП-десерти":"sweet","Десерти":"sweet","Випічка":"base","Соуси":"sauce","Інше":"dish"};
+document.getElementById("g").innerHTML=Object.keys(Art.ICONS).map(c=>`<div>${Art.bowl({group:G[c]},c,72)}<div>${c}</div></div>`).join("");
+</script></body></html>
