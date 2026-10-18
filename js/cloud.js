@@ -117,7 +117,7 @@ ${(text || "—").slice(0, 8000)}`;
     else {
       const parts = [{ text: prompt }, ...imgs.map(i => ({ inlineData: { mimeType: i.mime, data: i.data } }))];
       if (yt) parts.push({ fileData: { mimeType: "video/mp4", fileUri: link } });
-      const model = AI.getGenerativeModel(ai, { model: "gemini-2.5-flash", ...(useUrl ? { tools: [{ urlContext: {} }] } : {}) });
+      const model = AI.getGenerativeModel(ai, { model: "gemini-flash-latest", ...(useUrl ? { tools: [{ urlContext: {} }] } : {}) });
       raw = (await model.generateContent({ contents: [{ role: "user", parts }] })).response.text();
     }
   } catch (e) {
@@ -142,7 +142,7 @@ async function viaKey(key, prompt, imgs, ytLink, useUrl) {
   const parts = [{ text: prompt }, ...imgs.map(i => ({ inline_data: { mime_type: i.mime, data: i.data } }))];
   if (ytLink) parts.push({ file_data: { file_uri: ytLink } });
   const body = { contents: [{ role: "user", parts }], ...(useUrl ? { tools: [{ url_context: {} }] } : {}) };
-  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent", {
     method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body)
   });
   const d = await r.json().catch(() => ({}));
