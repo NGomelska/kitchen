@@ -30,7 +30,29 @@
   const GROUPS = { protein: "Білок", base: "Основа", veg: "Овочі", sauce: "Соус і зверху", sweet: "Десерт", dish: "Ціла страва" };
   const GKEYS = Object.keys(GROUPS);
   const MEALS = [["b", "Сніданок"], ["l", "Обід"], ["d", "Вечеря"], ["x", "Перекус / десерт"]];
-  const TABS = ["buy", "menu", "rec", "more"];
+  const TABS = ["buy", "prep", "menu", "rec", "more"];
+  /* підготовка: коли робити */
+  const MEAL_T = { b: "08:00", l: "13:00", d: "18:30", x: "19:30" };
+  const MEAL_GEN = { b: "сніданком", l: "обідом", d: "вечерею", x: "перекусом" };
+  const WHEN_W = { eve: "напередодні", morn: "зранку", day: "вдень" };
+  const hm = (t, minus) => { const [h, mm] = String(t || "18:30").split(":").map(Number); let x = h * 60 + mm - (+minus || 0); x = ((x % 1440) + 1440) % 1440; return `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`; };
+  /* рядок у формі рецепта ↔ справа: «напередодні: замаринувати курку (10 хв)», «за 30 хв: котлети в аерогриль (2 хв)» */
+  function parsePrep(line) {
+    let t = String(line || "").trim(); if (!t) return null;
+    let when = "pre", before = 30, min = null;
+    const m = /^([^:]{2,30}):\s*(.+)$/.exec(t);
+    if (m) {
+      const k = m[1].trim().toLowerCase(), b = /^за\s*(\d+)\s*(хв|год)/.exec(k);
+      if (b) { before = +b[1] * (b[2] === "год" ? 60 : 1); t = m[2]; }
+      else if (/^(напередодні|ввечері|звечора|на ніч)/.test(k)) { when = "eve"; t = m[2]; }
+      else if (/^(зранку|вранці)/.test(k)) { when = "morn"; t = m[2]; }
+      else if (/^(вдень|удень|в перерв)/.test(k)) { when = "day"; t = m[2]; }
+    }
+    const mm = /\((\d+)\s*хв\)\s*$/.exec(t);
+    if (mm) { min = +mm[1]; t = t.slice(0, mm.index).trim(); }
+    return when === "pre" ? { t, when, before, min } : { t, when, min };
+  }
+  const prepLine = p => `${p.when === "pre" ? `за ${p.before || 30} хв` : WHEN_W[p.when] || "вдень"}: ${p.t}${p.min ? ` (${p.min} хв)` : ""}`;
   const WD = ["Нд", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
   const WDF = ["неділя", "понеділок", "вівторок", "середа", "четвер", "п'ятниця", "субота"];
   const WDA = ["неділю", "понеділок", "вівторок", "середу", "четвер", "п'ятницю", "суботу"];
@@ -54,7 +76,7 @@
   const S = {
     items: [], recipes: [], slots: [], meta: {}, people: SEED.people,
     tag: "all", rcat: "all", q: "", pantryEdit: false,
-    weekStart: null, day: null, viewP: "me", profile: "", aiKey: ""
+    weekStart: null, day: null, viewP: "me", prepWho: "all", profile: "", aiKey: ""
   };
   let nutCache = new Map();
   const recipeById = () => Object.fromEntries(S.recipes.map(r => [r.id, r]));
@@ -87,6 +109,7 @@
 
   /* ---------- вкладки ---------- */
   function go(tab) {
+    if (tab === "prep") setTimeout(renderPrep, 0);
     document.querySelectorAll("[data-tab]").forEach(s => s.hidden = s.dataset.tab !== tab);
     document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.go === tab));
     try { localStorage.setItem("kitchen-tab", tab); } catch (e) {}
@@ -97,7 +120,7 @@
   document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => go(b.dataset.go));
 
   function renderSub() {
-    if (curTab() !== "menu" || !S.weekStart) { $("#sub").textContent = ""; return; }
+    if (!["menu", "prep"].includes(curTab()) || !S.weekStart) { $("#sub").textContent = ""; return; }
     const a = toDate(S.weekStart), b = toDate(addDays(S.weekStart, 6));
     const txt = a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()} ${MON[b.getMonth()]}` : `${a.getDate()} ${MON[a.getMonth()]} – ${b.getDate()} ${MON[b.getMonth()]}`;
     $("#sub").innerHTML = `<button data-wk="-1" aria-label="Попередній тиждень">‹</button><span>${txt}</span><button data-wk="1" aria-label="Наступний тиждень">›</button>`;
@@ -106,7 +129,7 @@
     const b = ev.target.closest("[data-wk]"); if (!b) return;
     S.weekStart = addDays(S.weekStart, 7 * +b.dataset.wk);
     S.day = S.weekStart;
-    renderSub(); renderMenu();
+    renderSub(); renderMenu(); renderPrep();
   });
 
   /* ---------- покупки ---------- */
@@ -227,7 +250,7 @@
       const chips = dishes.map(d => {
         const r = recipe(d.rid); if (!r) return "";
         const who = S.people.filter(x => (d.who || []).includes(x.id)).map(x => x.short || x.name[0]).join("");
-        return `<span class="dchip"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i><span class="t">${esc(r.title)}</span><span class="w">${esc(who)}</span></span>`;
+        return `<span class="dchip"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i><span class="t">${esc(r.title)}${d.left ? " ↻" : ""}</span><span class="w">${esc(who)}</span></span>`;
       }).join("");
       return `<button class="meal" data-meal="${m}">${bowl(groupsOf(dishes), 64)}<span class="body"><span class="lbl">${label}</span>${dishes.length ? `<span class="chips" style="gap:5px">${chips}</span>${n.k ? `<span class="nut">${esc(p.name)}: тарілка ≈${r0(n.g)} г · ${Nutrition.line(n)}</span>` : ""}` : `<span class="hint">Тапни, щоб зібрати миску</span>`}</span><span class="plusc">+</span></button>`;
     }).join("");
@@ -237,9 +260,96 @@
     const rows = Portions.aggregate(S.slots.filter(s => dates.includes(s.date)), recipeById(), S.people).filter(r => r.qty != null);
     $("#calcSub").textContent = rows.length ? `${rows.length} продуктів на цей тиждень` : "спершу збери миски";
   }
-  $("#week").addEventListener("click", ev => { const b = ev.target.closest("[data-day]"); if (!b) return; S.day = b.dataset.day; renderMenu(); });
+  $("#week").addEventListener("click", ev => { const b = ev.target.closest("[data-day]"); if (!b) return; S.day = b.dataset.day; renderMenu(); renderPrep(); });
   $("#totals").addEventListener("click", ev => { const b = ev.target.closest("[data-vp]"); if (!b) return; S.viewP = b.dataset.vp; renderMenu(); });
   $("#meals").addEventListener("click", ev => { const b = ev.target.closest("[data-meal]"); if (b) openPicker(S.day, b.dataset.meal); });
+
+  /* ---------- підготовка ---------- */
+  const mealTime = m => ((S.meta.times || {})[m]) || MEAL_T[m];
+  const prepDoc = date => S.meta["prep_" + date] || {};
+  /* справи, що належать стравам цього дня (страви «з залишків» не готуємо; одна страва — один раз) */
+  function dayTasks(date) {
+    const out = [], seen = new Set();
+    for (const [m] of MEALS) {
+      const sl = slotOf(date, m);
+      for (const d of sl ? sl.dishes || [] : []) {
+        if (d.left) continue;
+        const r = recipe(d.rid); if (!r || seen.has(r.id)) continue;
+        seen.add(r.id);
+        (r.prep || []).forEach((x, i) => out.push({ ...x, key: `${m}_${r.id}_${i}`, date, meal: m, r }));
+      }
+    }
+    for (const c of prepDoc(date).custom || []) out.push({ ...c, key: "c_" + c.id, date, custom: true });
+    return out.map(t => ({ ...t, st: (prepDoc(date).s || {})[t.key] || {}, time: t.when === "pre" ? hm(mealTime(t.meal || "d"), t.before) : "" }));
+  }
+  function renderPrep() {
+    if (!S.weekStart || !$("#prepList")) return;
+    const dates = weekDates(), tk = todayKey();
+    if (!dates.includes(S.day)) S.day = dates.includes(tk) ? tk : dates[0];
+    $("#pweek").innerHTML = dates.map(d => {
+      const left = [...dayTasks(d).filter(t => t.when !== "eve"), ...dayTasks(addDays(d, 1)).filter(t => t.when === "eve")].filter(t => !t.st.done).length;
+      return `<button class="dayc${d === S.day ? " on" : ""}${d === tk ? " today" : ""}" data-day="${d}"><b>${WD[toDate(d).getDay()]}</b><span>${toDate(d).getDate()}.${String(toDate(d).getMonth() + 1).padStart(2, "0")}</span><span class="dots">${left ? `<em class="pcount">${left}</em>` : ""}</span></button>`;
+    }).join("");
+    const today = dayTasks(S.day), tomorrow = dayTasks(addDays(S.day, 1)).filter(t => t.when === "eve");
+    const all = [...today.filter(t => t.when !== "eve"), ...tomorrow];
+    const f = S.prepWho || "all";
+    const vis = f === "all" ? all : all.filter(t => t.st.who === f);
+    const sections = [
+      ["Зранку", t => t.when === "morn" || (t.when === "pre" && t.meal === "b")],
+      ["Вдень, у перервах", t => t.when === "day" || (t.when === "pre" && t.meal === "l")],
+      [`Перед вечерею (${mealTime("d")})`, t => t.when === "pre" && (t.meal === "d" || t.meal === "x")],
+      ["Ввечері — на завтра", t => t.when === "eve"]
+    ];
+    const preDin = today.filter(t => t.when === "pre" && t.meal === "d" && !t.st.done).reduce((a, t) => a + (+t.min || 0), 0);
+    const done = all.filter(t => t.st.done).length;
+    const per = S.people.map(x => [x, all.filter(t => t.st.who === x.id && !t.st.done).length]).filter(([, n]) => n);
+    $("#prepTop").innerHTML = `<div class="card stack" style="gap:8px">
+      <div class="who"><span class="hint" style="flex:1">Чиї справи показати:</span><button class="chip small${f === "all" ? " on" : ""}" data-pf="all">Усі</button>${S.people.map(x => `<button class="av big${f === x.id ? "" : " off"}" data-pf="${esc(x.id)}" aria-label="${esc(x.name)}">${esc(x.short || x.name[0])}</button>`).join("")}</div>
+      <div class="hint">${all.length ? `Справ: <b>${all.length}</b> · зроблено ${done}${preDin ? ` · перед вечерею активної роботи ≈ <b>${preDin} хв</b>` : ""}${per.length ? `<br>${per.map(([x, n]) => `${esc(x.name)}: ${n}`).join(" · ")}` : ""}` : "На цей день справ немає."}</div>
+    </div>`;
+    const row = t => `<div class="row ptask${t.st.done ? " done" : ""}" data-k="${esc(t.key)}" data-date="${t.date}">
+      <button class="tick" data-act="pt" aria-label="Зроблено: ${esc(t.t)}"><span></span></button>
+      <span class="nm">${esc(t.t)}<span class="src">${t.time ? `о ${t.time} · ` : ""}${t.r ? esc(t.r.title) : "своя справа"}${t.min ? ` · ${t.min} хв` : ""}</span></span>
+      <span class="avs">${S.people.map(x => `<button class="av${t.st.who === x.id ? "" : " off"}" data-act="pw" data-p="${esc(x.id)}" aria-label="Доручити: ${esc(x.name)}">${esc(x.short || x.name[0])}</button>`).join("")}${t.custom ? `<button class="x" style="width:28px;height:28px" data-act="pdel" aria-label="Видалити справу">×</button>` : ""}</span>
+    </div>`;
+    let h = "";
+    for (const [title, test] of sections) {
+      const arr = vis.filter(test).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+      if (!arr.length) continue;
+      h += `<div class="group" style="margin-bottom:14px"><h3>${esc(title)}</h3><div class="list">${arr.map(row).join("")}</div></div>`;
+    }
+    if (!h) {
+      const anyMenu = MEALS.some(([m]) => ((slotOf(S.day, m) || {}).dishes || []).length);
+      h = `<p class="empty">${!anyMenu ? "У меню на цей день ще нічого немає. Збери миски у вкладці «Меню» — і тут з'являться справи." : f !== "all" ? "Для цієї людини справ немає." : "Для страв цього дня підготовка не розписана. Додай її в рецепті («Редагувати» → «Підготовка заздалегідь») або впиши справу нижче."}</p>`;
+    }
+    $("#prepList").innerHTML = h;
+  }
+  async function prepWrite(date, fn) {
+    const doc = structuredClone(prepDoc(date)); delete doc.id;
+    doc.s = doc.s || {}; doc.custom = doc.custom || [];
+    fn(doc);
+    return save(() => Store.set("meta", "prep_" + date, doc));
+  }
+  $("#pweek").addEventListener("click", ev => { const b = ev.target.closest("[data-day]"); if (!b) return; S.day = b.dataset.day; renderPrep(); renderMenu(); });
+  $("#prepTop").addEventListener("click", ev => { const b = ev.target.closest("[data-pf]"); if (!b) return; S.prepWho = b.dataset.pf; renderPrep(); });
+  $("#prepList").addEventListener("click", ev => {
+    const b = ev.target.closest("[data-act]"); if (!b) return;
+    const rowEl = b.closest("[data-k]"), k = rowEl.dataset.k, date = rowEl.dataset.date;
+    if (b.dataset.act === "pt") prepWrite(date, d => { d.s[k] = { ...(d.s[k] || {}), done: !(d.s[k] || {}).done }; });
+    if (b.dataset.act === "pw") prepWrite(date, d => { const cur = (d.s[k] || {}).who; d.s[k] = { ...(d.s[k] || {}), who: cur === b.dataset.p ? "" : b.dataset.p }; });
+    if (b.dataset.act === "pdel") prepWrite(date, d => { d.custom = d.custom.filter(c => "c_" + c.id !== k); delete d.s[k]; });
+  });
+  $("#prepAdd").onsubmit = ev => {
+    ev.preventDefault();
+    const t = $("#prepText").value.trim(); if (!t) return;
+    const w = $("#prepWhen").value;
+    const id = Date.now().toString(36);
+    // «ввечері на завтра» — справа завтрашнього дня
+    const date = w === "eve" ? addDays(S.day, 1) : S.day;
+    const item = w === "pre" ? { id, t, when: "pre", meal: "d", before: 30 } : { id, t, when: w };
+    prepWrite(date, d => { d.custom.push(item); });
+    $("#prepText").value = "";
+  };
 
   /* ---------- вибір страв у миску ---------- */
   let P = null;
@@ -287,7 +397,8 @@
     if (!P.dishes.length) { $("#pkPicked").innerHTML = `<p class="hint">Тапни на страви вище — вони з'являться тут. Потім познач, хто що їсть.</p><div class="pbtns"><button class="btn" data-act="pkSave">Готово</button><button class="btn ghost" data-act="close">Скасувати</button></div>`; return; }
     $("#pkPicked").innerHTML = `<h3>У мисці</h3>` + P.dishes.map((d, i) => {
       const r = recipe(d.rid); if (!r) return "";
-      return `<div class="prow"><span class="dchip"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i><span class="t">${esc(r.title)}</span></span><span class="avs">${S.people.map(x => `<button class="av${(d.who || []).includes(x.id) ? "" : " off"}" data-act="pkW" data-i="${i}" data-p="${esc(x.id)}" aria-label="${esc(x.name)}">${esc(x.short || x.name[0])}</button>`).join("")}<button class="x" style="width:28px;height:28px" data-act="pkX" data-i="${i}" aria-label="Прибрати">×</button></span></div>`;
+      return `<div class="prow"><span class="dchip"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i><span class="t">${esc(r.title)}</span></span><span class="avs">${S.people.map(x => `<button class="av${(d.who || []).includes(x.id) ? "" : " off"}" data-act="pkW" data-i="${i}" data-p="${esc(x.id)}" aria-label="${esc(x.name)}">${esc(x.short || x.name[0])}</button>`).join("")}<button class="x" style="width:28px;height:28px" data-act="pkX" data-i="${i}" aria-label="Прибрати">×</button></span></div>
+        <div style="margin:-2px 0 6px 18px"><button class="chip small${d.left ? " on" : ""}" data-act="pkL" data-i="${i}">↻ залишки — не готуємо${d.left ? " ✓" : ""}</button></div>`;
     }).join("") + `<div class="pbtns"><button class="btn" data-act="pkSave">Готово</button><button class="btn ghost" data-act="pkSaveNext">Готово + на завтра ↻</button></div>`;
   }
   async function savePicker(alsoNext) {
@@ -301,7 +412,7 @@
     if (alsoNext && dishes.length) {
       const next = addDays(P.date, 1), ex = slotOf(next, P.meal);
       const merged = structuredClone(ex ? ex.dishes || [] : []);
-      for (const d of dishes) if (!merged.some(x => x.rid === d.rid)) merged.push(structuredClone(d));
+      for (const d of dishes) if (!merged.some(x => x.rid === d.rid)) merged.push({ ...structuredClone(d), left: true });
       await save(() => write(next, merged));
       toast(`Скопійовано на ${WDA[toDate(next).getDay()]}`);
     }
@@ -392,6 +503,7 @@
         <div class="ing">${r.ingredients.map((g, i) => `<label><input type="checkbox" data-n="${i}"><span style="flex:1">${esc(g.name)}</span><span class="q">${g.qty == null ? "за смаком" : esc(Portions.fmt(...scaled(g, k)))}</span></label>`).join("")}</div>
         <button class="btn wide" style="margin-top:10px" data-act="tolist">Додати відмічене в покупки</button>
       </div>` : ""}
+      ${(r.prep || []).length ? `<div class="card"><h3 style="margin-bottom:8px">Підготовка заздалегідь</h3><div class="stack" style="gap:6px">${r.prep.map(p => `<div><b>${p.when === "pre" ? `за ${p.before || 30} хв до їжі` : esc(WHEN_W[p.when] || "")}:</b> ${esc(p.t)}${p.min ? ` <span class="hint">· ${p.min} хв</span>` : ""}</div>`).join("")}</div></div>` : ""}
       ${(r.steps || []).length ? `<div class="card"><h3 style="margin-bottom:8px">Як готувати</h3><ol class="steps">${r.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol></div>` : ""}
       <button class="btn danger" data-act="delrec">Видалити рецепт</button>
     </div>`);
@@ -415,6 +527,7 @@
         s.has(b.dataset.p) ? s.delete(b.dataset.p) : s.add(b.dataset.p);
         d.who = S.people.map(x => x.id).filter(x => s.has(x)); drawPkPicked(); return;
       }
+      if (act === "pkL") { const d = P.dishes[+b.dataset.i]; d.left = !d.left; if (!d.left) delete d.left; drawPkPicked(); return; }
       if (act === "pkX") { P.dishes.splice(+b.dataset.i, 1); drawPkGrid(); drawPkPicked(); return; }
       if (act === "smOpen") { P.simple = true; drawPkSimple(); $("#smName").focus(); return; }
       if (act === "smCancel") { P.simple = false; drawPkSimple(); return; }
@@ -480,6 +593,8 @@
       <div class="group"><span class="fl">Для кого</span><div class="chips" id="fTags"></div></div>
       <label class="fl">На скільки порцій рецепт<input type="number" id="fServ" min="0.5" step="0.5" value="${esc(r ? r.servings || 4 : 4)}"></label>
       <label class="fl">Інгредієнти <span class="hint">Кожен з нового рядка: «700 г фарш з індички», «2 шт яйця», «сіль — за смаком»</span><textarea id="fIng" rows="7">${esc(ingText)}</textarea></label>
+      <label class="fl">Підготовка заздалегідь <span class="hint">Кожна справа з нового рядка: «напередодні: замаринувати курку (10 хв)», «зранку: …», «вдень: …», «за 30 хв: котлети в аерогриль (2 хв)»</span><textarea id="fPrep" rows="4">${esc(r ? (r.prep || []).map(prepLine).join("
+") : "")}</textarea></label>
       <label class="fl">Як готувати <span class="hint">Кожен крок з нового рядка</span><textarea id="fSteps" rows="6">${esc(r ? (r.steps || []).join("\n") : "")}</textarea></label>
       <label class="fl">Порада для мене / для сина<textarea id="fTip" rows="3">${esc(r ? r.tip || "" : "")}</textarea></label>
       <div class="group"><span class="fl">КБЖУ на порцію вручну <span class="hint">Необов'язково: якщо заповнити, застосунок не рахуватиме сам</span></span>
@@ -537,6 +652,8 @@
       if (j.ingredients && j.ingredients.length) $("#fIng").value = j.ingredients.map(Portions.lineOf).join("\n");
       if (j.steps && j.steps.length) $("#fSteps").value = j.steps.join("\n");
       if (j.tip) $("#fTip").value = j.tip;
+      if (Array.isArray(j.prep) && j.prep.length) $("#fPrep").value = j.prep.filter(x => x && x.t).map(x => prepLine({ t: String(x.t), when: ["eve", "morn", "day", "pre"].includes(x.when) ? x.when : "pre", before: +x.before || 30, min: +x.min || null })).join("
+");
       for (const t of j.tags || []) if (TAGS.includes(t)) F.tags.add(t);
       drawFormTags(); st.textContent = "Готово. Перевір і збережи.";
     } catch (e) { console.error(e); st.textContent = e && e.userMessage || "Не вийшло розібрати. Додай скриншот або заповни вручну."; }
@@ -552,7 +669,7 @@
     const body = {
       title, cat: $("#fCat").value, group: $("#fGroup").value, tags: [...F.tags], servings: Math.max(0.5, +$("#fServ").value || 4),
       ingredients: lines($("#fIng").value).map(Portions.parseLine).filter(Boolean).map(i => ({ ...i, name: cap(i.name) })),
-      steps: lines($("#fSteps").value), tip: $("#fTip").value.trim(), link: $("#fLink").value.trim(),
+      steps: lines($("#fSteps").value), prep: lines($("#fPrep").value).map(parsePrep).filter(Boolean), tip: $("#fTip").value.trim(), link: $("#fLink").value.trim(),
       thumb: F.thumb || "", simple: !!(old && old.simple), updatedAt: Date.now(),
       nutr: nutr.some(v => v != null) ? { k: nutr[0] || 0, p: nutr[1] || 0, f: nutr[2] || 0, c: nutr[3] || 0 } : null
     };
@@ -569,6 +686,11 @@
         <h2>Хто скільки їсть</h2>
         <p class="hint">1 = звичайна доросла порція. Від цього рахуються покупки і КБЖУ кожної тарілки.</p>
         ${S.people.map(p => `<label class="person"><span>${esc(p.name)}</span><input type="number" min="0" max="3" step="0.1" data-pf="w" data-pid="${esc(p.id)}" value="${esc(p.w)}" aria-label="Порція: ${esc(p.name)}"></label>`).join("")}
+      </div>
+      <div class="card stack">
+        <h2>Коли їмо</h2>
+        <p class="hint">Від цього «Підготовка» рахує, о котрій що ставити.</p>
+        ${MEALS.map(([m, l]) => `<label class="person"><span>${l}</span><input type="time" data-mt="${m}" value="${esc(mealTime(m))}" aria-label="Час: ${l}"></label>`).join("")}
       </div>
       <div class="card stack">
         <h2>Мета на день</h2>
@@ -602,6 +724,10 @@
       const f = inp.dataset.pf, v = inp.value.trim();
       const list = S.people.map(p => p.id === inp.dataset.pid ? { ...p, [f]: f === "w" ? Math.max(0, +v || 0) : (v === "" ? "" : Math.max(0, +v || 0)) } : p);
       save(() => Store.set("settings", "people", { list }));
+    });
+    $("#moreBody").querySelectorAll("[data-mt]").forEach(inp => inp.onchange = () => {
+      const times = { ...MEAL_T, ...(S.meta.times || {}) }; delete times.id; times[inp.dataset.mt] = inp.value || MEAL_T[inp.dataset.mt];
+      save(() => Store.set("meta", "times", times));
     });
     const ak = $("#aiKey"); if (ak) ak.onchange = async e => { const v = e.target.value.trim(); if (await save(() => Store.set("settings", "ai", { geminiKey: v }))) $("#aiKeyState").textContent = v ? "Ключ збережено ✓" : "Ключ видалено"; };
     $("#profileText").onchange = e => save(() => Store.set("settings", "profile", { text: e.target.value.trim() }));
@@ -641,7 +767,7 @@
     await Store.init();
     Store.sub("items", d => { S.items = d; renderBuy(); });
     Store.sub("recipes", d => { S.recipes = d; nutCache = new Map(); renderTags(); renderRecipes(); renderMenu(); });
-    Store.sub("slots", d => { S.slots = d; renderMenu(); });
+    Store.sub("slots", d => { S.slots = d; renderMenu(); renderPrep(); });
     Store.sub("meta", d => {
       S.meta = Object.fromEntries(d.map(x => [x.id, x]));
       if (!S.weekStart) {
@@ -650,7 +776,7 @@
         S.weekStart = st && tk < addDays(st, 7) && tk >= addDays(st, -6) ? (tk >= st ? sundayOf(tk) : st) : sundayOf(tk);
         if (st && tk < st && tk >= addDays(st, -6)) S.weekStart = st;
       }
-      renderSub(); renderMenu();
+      renderSub(); renderMenu(); renderPrep();
     });
     Store.sub("settings", d => {
       const p = d.find(x => x.id === "people"); if (p && Array.isArray(p.list)) S.people = p.list;

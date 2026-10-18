@@ -1,5 +1,5 @@
 /* Щоб застосунок відкривався і без інтернету (дані — окремо, у сховищі). */
-const CACHE = "kitchen-v10";
+const CACHE = "kitchen-v11";
 const SHELL = ["./", "index.html", "styles.css", "manifest.webmanifest", "js/portions.js", "js/nutrition.js", "js/seed.js", "js/firebase-config.js", "js/store.js", "js/cloud.js", "js/app.js", "icons/icon-192.png"];
 
 self.addEventListener("install", e => {

@@ -41,6 +41,19 @@
     <div id="buyList"></div>
   </section>
 
+  <section data-tab="prep" hidden>
+    <div class="week" id="pweek"></div>
+    <div id="prepTop" style="margin-bottom:12px"></div>
+    <div id="prepList"></div>
+    <form id="prepAdd" class="add" autocomplete="off" style="margin-top:8px">
+      <input type="text" id="prepText" placeholder="Своя справа: купити хліб, розморозити фарш…">
+      <div class="addrow">
+        <select id="prepWhen" aria-label="Коли"><option value="morn">Зранку</option><option value="day" selected>Вдень</option><option value="pre">Перед вечерею</option><option value="eve">Ввечері — на завтра</option></select>
+        <button class="btn" type="submit">Додати</button>
+      </div>
+    </form>
+  </section>
+
   <section data-tab="menu">
     <div class="week" id="week"></div>
     <div id="totals"></div>
@@ -66,6 +79,7 @@
 
 <nav class="tabs" aria-label="Розділи"><div class="in" role="tablist">
   <button role="tab" data-go="buy" aria-selected="false"><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)" aria-hidden="true"><path d="M4 7h16l-2 12H6z M9 7a3 3 0 0 1 6 0" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>Купити<span class="c" id="cBuy"></span></button>
+  <button role="tab" data-go="prep" aria-selected="false"><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)" aria-hidden="true"><path d="M4 15l10-10 4 4-10 10H4z M12 7l4 4 M3 21h18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/></svg>Підготовка<span class="c"></span></button>
   <button role="tab" data-go="menu" aria-selected="true"><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)" aria-hidden="true"><path d="M3 11h18a9 7 0 0 1-18 0z M8 8c0-2 2-2 2-4 M13 8c0-2 2-2 2-4" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>Меню<span class="c"></span></button>
   <button role="tab" data-go="rec" aria-selected="false"><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)" aria-hidden="true"><path d="M5 4h11l3 3v13H5z M8 10h8 M8 14h8 M8 18h5" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>Рецепти<span class="c"></span></button>
   <button role="tab" data-go="more" aria-selected="false"><svg width="24" height="24" viewBox="0 0 24 24" filter="url(#pencil)" aria-hidden="true"><circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/></svg>Ще<span class="c"></span></button>

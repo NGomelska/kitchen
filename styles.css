@@ -184,11 +184,19 @@ ol.steps{padding-left:1.3rem;margin:0;display:grid;gap:8px}
 
 /* tabs */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1.5px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);z-index:10}
-nav.tabs .in{display:grid;grid-template-columns:repeat(4,1fr);width:100%;max-width:560px}
-nav.tabs button{border:0;background:transparent;padding:8px 4px 10px;min-height:58px;font-weight:700;color:var(--ink-soft);display:flex;flex-direction:column;align-items:center;gap:1px;font-size:.78rem;position:relative}
+nav.tabs .in{display:grid;grid-template-columns:repeat(5,1fr);width:100%;max-width:560px}
+nav.tabs button{border:0;background:transparent;padding:8px 4px 10px;min-height:58px;font-weight:700;color:var(--ink-soft);display:flex;flex-direction:column;align-items:center;gap:1px;font-size:.7rem;position:relative;min-width:0}
 nav.tabs button svg{display:block}
 nav.tabs button .c{position:absolute;top:4px;left:calc(50% + 8px);font-size:.66rem;font-weight:800;background:var(--protein);color:#fff;border-radius:99px;padding:0 5px;min-width:16px;line-height:16px}
 nav.tabs button .c:empty{display:none}
 nav.tabs button[aria-selected=true]{color:var(--ink)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(140px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:12px;z-index:30;max-width:min(90vw,480px);font-size:.92rem;text-align:center}
 @media (prefers-reduced-motion:no-preference){.row,.chip,.tick span,.dish{transition:background .15s,border-color .15s,color .15s,box-shadow .15s}}
+
+/* prep */
+.ptask .src{display:block;color:var(--ink-soft);font-size:.78rem;font-weight:500}
+.ptask .avs{display:flex;gap:4px;flex:none}
+.row.ptask{align-items:flex-start;padding-block:8px}
+.row.ptask .tick{margin-top:-6px}
+.pcount{font-style:normal;font-size:.66rem;font-weight:800;color:var(--protein);line-height:1}
+.dayc.on .pcount{color:var(--paper)}
