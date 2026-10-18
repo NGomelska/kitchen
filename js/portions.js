@@ -69,8 +69,12 @@ const Portions = (() => {
 
   /* «700 г фаршу з індички» → {qty:700, unit:"г", name:"фаршу з індички"} */
   const FR = { "½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3 };
-  const UNIT_RE = "(кг|гр|г|мл|л|шт\\.?|ст\\.\\s?л\\.?|ч\\.\\s?л\\.?|уп\\.?|банк[аи]?|банок|пучок)(?![а-яіїєґa-z])";
-  function parseLine(s) {
+  const UNIT_RE = "(кг|гр|г|мл|л|шт\\.?|ст\\.\\s?л\\.?|ч\\.\\s?л\\.?|уп\\.?|банк[аи]?|банок|пучок|cups?|склянк[аи]?|oz|lbs?|tbsp|tsp)(?![а-яіїєґa-z])";
+  /* американські міри, коли рецепт вставлено вручну (без Gemini): склянка = 240 мл, унція = 28 г, фунт = 454 г */
+  const US = { cup: [240, "мл"], cups: [240, "мл"], "склянка": [240, "мл"], "склянки": [240, "мл"], oz: [28, "г"], lb: [454, "г"], lbs: [454, "г"], tbsp: [1, "ст.л."], tsp: [1, "ч.л."] };
+  const fromUS = r => { const c = r && US[String(r.unit || "").toLowerCase()]; return c && r.qty != null ? { ...r, qty: Math.round(r.qty * c[0] * 10) / 10, unit: c[1] } : r; };
+  function parseLine(s) { return fromUS(parseLine0(s)); }
+  function parseLine0(s) {
     let t = String(s || "").replace(/^[\s•\-–—*]+/, "").trim();
     if (!t) return null;
     // «Фарш — 700 г» / «Фарш: 700 г»

@@ -491,11 +491,12 @@
       <div class="hero">${Art.bowl(r, catOf(r), 132)}</div>
       ${r.thumb ? `<details class="note"><summary>Скриншот рецепта</summary><img class="bigimg" style="margin-top:8px" src="${esc(r.thumb)}" alt="Скриншот рецепта"></details>` : ""}
       ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">Відкрити оригінал ↗</a>` : ""}
-      <div class="card stack" style="gap:8px">${n.per100 ? `<h3>КБЖУ на 100 г</h3>
+      <div class="card stack" style="gap:8px">${n.per100 ? `<h3>КБЖУ на 100 г готової страви</h3>
         <div class="nutbox"><div><b>${r0(n.per100.k)}</b><span>ккал</span></div><div><b>${r0(n.per100.p)}</b><span>білки</span></div><div><b>${r0(n.per100.f)}</b><span>жири</span></div><div><b>${r0(n.per100.c)}</b><span>вуглев.</span></div></div>
-        <p class="hint"><b>1 порція ≈ ${r0(n.g)} г:</b> ${Nutrition.line(n)}${r.simple ? " (вага сирого продукту)" : ""}</p>` : `<h3>КБЖУ на 1 порцію</h3>
+        <p class="hint"><b>1 порція ≈ ${r0(n.g)} г готової:</b> ${Nutrition.line(n)}</p>
+        <p class="hint">${n.method === "weighed" ? `Вага зважена: вся страва ${r0(+r.cookedG)} г.` : n.method === "raw" ? "Страва без термообробки — вага як у продуктів." : `${n.method === "boil" ? "Варіння" : "Запікання / смаження"}: вихід ≈ ${n.yieldPct} % від ваги сирих продуктів (${r0(n.gRaw)} г сирих на порцію → ${r0(n.g)} г готових). Зважиш готову страву — впиши вагу в «Редагувати», буде точніше.`}${n.per100raw && n.method !== "raw" ? ` На 100 г сирої суміші: ${r0(n.per100raw.k)} ккал.` : ""}</p>` : `<h3>КБЖУ на 1 порцію</h3>
         <div class="nutbox"><div><b>${r0(n.k)}</b><span>ккал</span></div><div><b>${r0(n.p)}</b><span>білки</span></div><div><b>${r0(n.f)}</b><span>жири</span></div><div><b>${r0(n.c)}</b><span>вуглев.</span></div></div>`}
-        ${n.missing.length ? `<p class="hint">Без даних для: ${esc(n.missing.join(", "))} — цифри неповні. Можна вписати КБЖУ вручну в «Редагувати».</p>` : `<p class="hint">Приблизно, ±15 %. Вага — сирих продуктів; готова страва легша, тож на 100 г готової трохи більше калорій. Порції: ${S.people.map(x => `${esc(x.name)} ×${N(+x.w || 1)}`).join(", ")}.</p>`}
+        ${n.missing.length ? `<p class="hint">Без даних для: ${esc(n.missing.join(", "))} — цифри неповні. Можна вписати КБЖУ вручну в «Редагувати».</p>` : `<p class="hint">Приблизно, ±15 %. Порції: ${S.people.map(x => `${esc(x.name)} ×${N(+x.w || 1)}`).join(", ")}.</p>`}
       </div>
       ${r.tip ? `<div class="tip"><b>Порада:</b> ${esc(r.tip)}</div>` : ""}
       ${(r.ingredients || []).length ? `<div class="card">
@@ -604,6 +605,7 @@
       <label class="fl">Як готувати <span class="hint">Кожен крок з нового рядка</span><textarea id="fSteps" rows="6">${esc(r ? (r.steps || []).join("\n") : "")}</textarea></label>
       <label class="fl">Порада для мене / для сина<textarea id="fTip" rows="3">${esc(r ? r.tip || "" : "")}</textarea></label>
       <div class="group"><span class="fl">КБЖУ на порцію вручну <span class="hint">Необов'язково: якщо заповнити, застосунок не рахуватиме сам</span></span>
+        <label class="fl" style="font-weight:600">Вага всієї готової страви, г <span class="hint">Якщо зважила після готування — КБЖУ на 100 г буде точним</span><input type="number" id="fCooked" min="0" step="10" placeholder="напр. 850" value="${esc(r && r.cookedG ? r.cookedG : "")}"></label>
         <div class="nutbox"><input type="number" id="nK" placeholder="ккал" value="${esc(nu.k ?? "")}"><input type="number" id="nP" placeholder="Б" value="${esc(nu.p ?? "")}"><input type="number" id="nF" placeholder="Ж" value="${esc(nu.f ?? "")}"><input type="number" id="nC" placeholder="У" value="${esc(nu.c ?? "")}"></div></div>
       <button class="btn" type="button" id="fSave">Зберегти рецепт</button>
     </div>`);
@@ -696,6 +698,7 @@
       ingredients: lines($("#fIng").value).map(Portions.parseLine).filter(Boolean).map(i => ({ ...i, name: cap(i.name) })),
       steps: lines($("#fSteps").value), prep: lines($("#fPrep").value).map(parsePrep).filter(Boolean), tip: $("#fTip").value.trim(), link: $("#fLink").value.trim(),
       thumb: F.thumb || "", photo: F.photo || "", simple: !!(old && old.simple), updatedAt: Date.now(),
+      cookedG: +$("#fCooked").value > 0 ? +$("#fCooked").value : null,
       nutr: nutr.some(v => v != null) ? { k: nutr[0] || 0, p: nutr[1] || 0, f: nutr[2] || 0, c: nutr[3] || 0 } : null
     };
     const id = F.id || Store.newId("r");

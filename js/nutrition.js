@@ -84,27 +84,56 @@ const Nutrition = (() => {
     return null;
   }
 
-  /* КБЖУ рецепта: на 1 порцію і на 100 г.
-     Вага — сума сирих інгредієнтів (після готування страва легшає, тож на 100 г готової — трохи більше). */
+  /* Вага після готування. Крупи й макарони при варінні вбирають воду, м'ясо й овочі в духовці
+     чи аерогрилі втрачають. Коефіцієнти усереднені з кулінарних таблиць. */
+  const GRAIN = [[/рис/, 3], [/греч/, 2.7], [/макарон|спагет/, 2.2], [/кускус/, 2.5], [/булгур/, 2.5], [/кіноа/, 2.8], [/пшон/, 3]];
+  const MEATY = /куряч|курк|стегн|філе|фарш|індич|ялович|свинин|лосос|риб|тунц|тунец|сосиск|шинк|котлет/;
+  const VEGGY = /баклаж|цукін|кабач|картопл|морк|цибул|брокол|капуст|помід|перец|гриб|порей|буряк/;
+  function method(r) {
+    const t = [r.title, ...(r.steps || []), ...(r.prep || []).map(p => p.t)].join(" ").toLowerCase();
+    if (/запік|запек|духовк|аерогрил|смаж|обсмаж|гриль|печ[еи]/.test(t)) return "dry";
+    if (/звари|варит|відвар|окроп|на пару|тушк|туши/.test(t)) return "boil";
+    // прості гарніри (рис, гречка) рахуємо вареними
+    if (r.simple && (r.ingredients || []).some(i => GRAIN.some(([re]) => re.test(String(i.name).toLowerCase())))) return "boil";
+    return "raw";
+  }
+  function cookFactor(name, m, r) {
+    const n = String(name || "").toLowerCase();
+    const gr = GRAIN.find(([re]) => re.test(n));
+    if (gr && (m === "boil" || r.simple)) return gr[1];
+    if (m === "dry") return MEATY.test(n) ? 0.72 : VEGGY.test(n) ? 0.8 : 0.9;
+    if (m === "boil") return MEATY.test(n) ? 0.8 : 1;
+    return 1;
+  }
+
+  /* КБЖУ рецепта: на 1 порцію і на 100 г ГОТОВОЇ страви.
+     Якщо готову страву зважили (cookedG — вага всієї страви), беремо цю вагу. */
   function perPortion(recipe) {
     const sum = { k: 0, p: 0, f: 0, c: 0 }, missing = [];
-    let totalG = 0;
-    const s = +recipe.servings || 1;
+    let rawG = 0, cookG = 0;
+    const s = +recipe.servings || 1, m = method(recipe);
     for (const ing of recipe.ingredients || []) {
       const e = find(ing.name);
       const g = grams(ing, e);
       if (g === 0) continue;
-      if (g != null) totalG += g;
+      if (g != null) { rawG += g; cookG += g * cookFactor(ing.name, m, recipe); }
       if (!e || g == null) { missing.push(ing.name); continue; }
       sum.k += e.k * g / 100; sum.p += e.p * g / 100; sum.f += e.f * g / 100; sum.c += e.c * g / 100;
     }
-    const g = totalG / s; // грамів в одній порції
-    if (recipe.nutr) { // вписано вручну на 1 порцію
-      const n = { k: +recipe.nutr.k || 0, p: +recipe.nutr.p || 0, f: +recipe.nutr.f || 0, c: +recipe.nutr.c || 0 };
-      return { ...n, g, per100: g > 0 ? scale(n, 100 / g) : null, missing: [] };
-    }
-    const n = { k: sum.k / s, p: sum.p / s, f: sum.f / s, c: sum.c / s };
-    return { ...n, g, per100: totalG > 0 ? scale(sum, 100 / totalG) : null, missing };
+    const weighed = +recipe.cookedG > 0;
+    if (weighed) cookG = +recipe.cookedG;
+    const base = recipe.nutr
+      ? { k: (+recipe.nutr.k || 0) * s, p: (+recipe.nutr.p || 0) * s, f: (+recipe.nutr.f || 0) * s, c: (+recipe.nutr.c || 0) * s }
+      : sum;
+    return {
+      ...scale(base, 1 / s),
+      g: cookG / s, gRaw: rawG / s,
+      per100: cookG > 0 ? scale(base, 100 / cookG) : null,
+      per100raw: rawG > 0 ? scale(base, 100 / rawG) : null,
+      yieldPct: rawG > 0 ? Math.round(cookG / rawG * 100) : 100,
+      method: weighed ? "weighed" : m,
+      missing: recipe.nutr ? [] : missing
+    };
   }
   const scale = (n, m) => ({ k: n.k * m, p: n.p * m, f: n.f * m, c: n.c * m });
 
