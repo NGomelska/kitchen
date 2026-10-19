@@ -286,3 +286,5 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .estrow input{min-height:38px;padding:6px 8px}
 .esttot{border-top:1px dashed var(--line);padding-top:6px;font-size:.9rem}
 .eatrow .eimg{width:44px;height:44px;object-fit:cover;border-radius:10px;margin-right:8px;flex:none}
+.leftbar .whorow{display:flex;align-items:center;gap:8px}
+.leftbar .whorow .hint{flex:1}

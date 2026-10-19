@@ -634,6 +634,7 @@
     const later = S.slots.filter(s => after(ctx.date, ctx.meal, s.date, s.meal) && (s.dishes || []).some(d => d.rid === r.id && d.left));
     const opts = nextSlots(ctx.date, ctx.meal, 4);
     return `<div class="card leftbar">
+      <div class="whorow"><span class="hint">Хто їсть:</span>${S.people.map(x => `<button class="av big${(dish.who || []).includes(x.id) ? "" : " off"}" data-act="whoT" data-p="${esc(x.id)}" aria-pressed="${(dish.who || []).includes(x.id)}" aria-label="${esc(x.name)}">${esc(x.short || x.name[0])}</button>`).join("")}</div>
       <div class="row2"><select id="leftTo">${opts.map(([d, m]) => `<option value="${d}_${m}">${slotLabel(d, m)}</option>`).join("")}</select><button class="btn small" data-act="leftAdd">↻ Лишилось</button></div>
       ${later.length ? `<p class="hint">Залишки вже стоять: ${later.map(s => slotLabel(s.date, s.meal)).join(", ")}.</p><button class="btn ghost small" data-act="leftDone">✓ Доїли — прибрати залишки</button>` : `<p class="hint">Лишилось? Додам на вибраний обід чи вечерю тим самим людям.</p>`}
     </div>`;
@@ -727,6 +728,16 @@
       const ids = tryList().filter(x => x !== r.id); if (!tryList().includes(r.id)) ids.unshift(r.id);
       const ok = await save(() => Store.set("meta", "try", { ids }));
       if (ok) { setTimeout(() => openRecipe(r.id, view.por), 150); toast(ids.includes(r.id) ? "Додала в «Хочу спробувати»" : "Прибрала з «Хочу спробувати»"); }
+      return;
+    }
+    if (act === "whoT" && view.ctx) {
+      const ctx = view.ctx, sl = slotOf(ctx.date, ctx.meal); if (!sl) return;
+      const dishes = structuredClone(sl.dishes || []), dd = dishes.find(x => x.rid === r.id); if (!dd) return;
+      const w = new Set(dd.who || []); w.has(b.dataset.p) ? w.delete(b.dataset.p) : w.add(b.dataset.p);
+      if (!w.size) { toast("Хтось має їсти — або прибери страву в мисці."); return; }
+      dd.who = S.people.map(x => x.id).filter(x => w.has(x));
+      const ok = await save(() => Store.set("slots", sl.id, { date: sl.date, meal: sl.meal, dishes }));
+      if (ok) setTimeout(() => openRecipe(r.id, view.por), 200);
       return;
     }
     if (act === "leftAdd" && view.ctx) {
