@@ -274,3 +274,15 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .mprow:first-of-type{border-top:0}
 .mprow small{color:var(--ink-soft);font-weight:800}
 #planMake{margin-bottom:10px}
+.mebig{display:grid;justify-items:center;gap:2px;padding:18px 12px;border:2px dashed var(--line);border-radius:16px;cursor:pointer;font-size:1.6rem;background:var(--paper-2)}
+.mebig b{font-size:1rem}
+.mebig span{font-size:.78rem;color:var(--ink-soft)}
+.methumbs{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.methumbs img{width:64px;height:64px;object-fit:cover;border-radius:10px}
+.linkb{border:0;background:none;padding:0;color:var(--ink);text-decoration:underline;font:inherit;cursor:pointer}
+.estrow{display:grid;grid-template-columns:1fr 70px auto auto;gap:6px;align-items:center}
+.estrow .nm{min-width:0;overflow-wrap:anywhere;font-weight:600;font-size:.88rem}
+.estrow .src{display:block;font-weight:400;font-size:.75rem;color:var(--ink-soft)}
+.estrow input{min-height:38px;padding:6px 8px}
+.esttot{border-top:1px dashed var(--line);padding-top:6px;font-size:.9rem}
+.eatrow .eimg{width:44px;height:44px;object-fit:cover;border-radius:10px;margin-right:8px;flex:none}

@@ -63,7 +63,8 @@ export async function start({ config, emails, local, showLogin }) {
   window.AI = {
     parseRecipe: opts => parseRecipe(AI, ai, { ...opts, profile: (cache.settings.get("profile") || {}).text || "", key: aiKey() }),
     estimateFood: opts => estimateFood(AI, ai, { ...opts, key: aiKey() }),
-    planMenu: opts => planMenu({ ...opts, key: aiKey() })
+    planMenu: opts => planMenu({ ...opts, key: aiKey() }),
+    estimatePlate: opts => estimatePlate({ ...opts, key: aiKey() })
   };
 
   return {
@@ -170,6 +171,27 @@ async function estimateFood(AI, ai, { text, images, grams, key }) {
   const j = JSON.parse(m[0]);
   for (const k of ["grams", "k", "p", "f", "c"]) j[k] = +j[k] || 0;
   return j;
+}
+/* що на тарілці: фото (тарілка відомого діаметра як масштаб) + коментар + підказки з меню */
+async function estimatePlate({ text, images, plateCm, menu, key }) {
+  if (!key) { const err = new Error("no key"); err.userMessage = "Gemini ще не підключений: встав ключ у «Ще → Ключ Gemini»."; throw err; }
+  const prompt = `Оціни, що і скільки з'їла людина. ${images && images.length ? `На фото — її їжа${plateCm ? ` на тарілці діаметром ${plateCm} см: використовуй тарілку як лінійку, щоб оцінити об'єм і вагу кожного продукту` : ""}. Якщо фото кілька — це одна їжа з різних ракурсів або кілька тарілок за раз; не рахуй двічі одне й те саме.` : "Фото нема — оціни за описом, типові домашні порції."}
+Розпізнай КОЖЕН продукт чи страву окремо (м'ясо, гарнір, овочі, соус, хліб, сир тощо). Для кожного — вага в грамах і КБЖУ на цю вагу. Враховуй олію/соус, якщо видно.
+Коментар людини важливіший за фото: «з'їла половину», «ще кефір 200 мл», «без хліба» — врахуй.
+${menu && menu.length ? `Що з цього може бути з домашнього меню — бери КБЖУ на 100 г звідси, а вагу оціни з фото:\n${menu.map(m => `- ${m.title}: ${m.per100 ? `${m.per100.k} ккал, Б ${m.per100.p}, Ж ${m.per100.f}, У ${m.per100.c} на 100 г` : "КБЖУ невідоме"}${m.portionG ? `, типова порція ${m.portionG} г` : ""}`).join("\n")}` : ""}
+Коментар: ${text || "—"}
+Поверни ТІЛЬКИ JSON: {"items":[{"name":"коротко українською","grams":150,"k":240,"p":20,"f":12,"c":10}],"note":"1 речення: на чому базується оцінка"}`;
+  const imgs = [];
+  for (const f of images || []) imgs.push({ mime: f.type || "image/jpeg", data: await b64(f) });
+  let raw;
+  try { raw = await viaKey(key, prompt, imgs, "", false); }
+  catch (e) {
+    console.error(e);
+    const err = new Error("gemini"); err.userMessage = isMoney(e && e.message) ? MONEY_MSG : /quota|429|RESOURCE_EXHAUSTED/i.test(String(e && e.message)) ? "Ліміт Gemini вичерпано, спробуй трохи пізніше." : "Gemini не відповів. Спробуй ще раз."; throw err;
+  }
+  const m = String(raw || "").match(/\{[\s\S]*\}/);
+  if (!m) { const err = new Error("no json"); err.userMessage = "Gemini не розпізнав їжу. Додай коментар словами."; throw err; }
+  return JSON.parse(m[0]);
 }
 /* меню на кілька днів: фото холодильника + побажання + усе, що знаємо про родину й рецепти */
 async function planMenu({ prompt, images, key }) {
