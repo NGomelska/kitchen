@@ -288,3 +288,6 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .eatrow .eimg{width:44px;height:44px;object-fit:cover;border-radius:10px;margin-right:8px;flex:none}
 .leftbar .whorow{display:flex;align-items:center;gap:8px}
 .leftbar .whorow .hint{flex:1}
+.ing .sk{font-size:.78rem;color:var(--ink-soft);font-style:italic}
+.ing .orig{display:block;font-size:.72rem;color:var(--ink-soft)}
+.swapnote{font-size:.82rem;background:var(--paper-2);border-radius:10px;padding:6px 10px;margin:0 0 6px}

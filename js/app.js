@@ -667,8 +667,8 @@
       ${r.tip ? `<div class="tip"><b>Порада:</b> ${esc(r.tip)}</div>` : ""}
       ${(r.ingredients || []).length ? `<div class="card">
         <div class="servings" style="margin-bottom:8px"><h3 style="flex:1">Інгредієнти</h3><span class="stepper"><button data-act="pminus" aria-label="Менше порцій">−</button><span>${N(view.por)}</span><button data-act="pplus" aria-label="Більше порцій">+</button></span><span class="hint">порц.</span></div>
-        <p class="hint" style="margin-bottom:4px">Відміть, чого нема вдома, і додай у покупки.</p>
-        <div class="ing">${r.ingredients.map((g, i) => `<label><input type="checkbox" data-n="${i}"><span style="flex:1">${esc(g.name)}</span><span class="q">${g.qty == null ? "за смаком" : esc(Portions.fmt(...scaled(g, k)))}</span></label>`).join("")}</div>
+        ${r.ingredients.some(g => g.orig) ? `<p class="swapnote">🛒 Замінила для Словаччини: ${r.ingredients.filter(g => g.orig).map(g => `${esc(g.orig)} → ${esc(g.name)}`).join("; ")}</p>` : ""}<p class="hint" style="margin-bottom:4px">Відміть, чого нема вдома, і додай у покупки.</p>
+        <div class="ing">${r.ingredients.map((g, i) => `<label><input type="checkbox" data-n="${i}"><span style="flex:1">${esc(g.name)}${g.sk ? ` <span class="sk">${esc(g.sk)}</span>` : ""}${g.orig ? `<span class="orig">замість: ${esc(g.orig)}</span>` : ""}</span><span class="q">${g.qty == null ? "за смаком" : esc(Portions.fmt(...scaled(g, k)))}</span></label>`).join("")}</div>
         <button class="btn wide" style="margin-top:10px" data-act="tolist">Додати відмічене в покупки</button>
       </div>` : ""}
       ${(r.prep || []).length ? `<div class="card"><h3 style="margin-bottom:8px">Підготовка заздалегідь</h3><div class="stack" style="gap:6px">${r.prep.map(p => `<div><b>${p.when === "pre" ? `за ${p.before || 30} хв до їжі` : esc(WHEN_W[p.when] || "")}:</b> ${esc(p.t)}${p.min ? ` <span class="hint">· ${p.min} хв</span>` : ""}</div>`).join("")}</div></div>` : ""}
