@@ -1001,7 +1001,8 @@
   const ME = { day: null, busy: false, est: null, note: "", hints: [], text: "", imgs: [], thumb: "", meal: null, open: null };
   const meP = () => person("me") || S.people[0];
   const meLog = (date, pid) => (eatDoc(date, pid).extra || []);
-  const sumN = xs => xs.reduce((a, x) => Nutrition.add(a, x), Nutrition.zero());
+  const sumN = xs => xs.reduce((a, x) => ({ ...Nutrition.add(a, x), fib: (a.fib || 0) + (+x.fib || 0), fe: (a.fe || 0) + (+x.fe || 0) }), { ...Nutrition.zero(), fib: 0, fe: 0 });
+  const r1 = v => Math.round(v * 10) / 10;
   async function meWrite(date, pid, fn) {
     const id = `eat_${date}_${pid}`, doc = structuredClone(S.meta[id] || {}); delete doc.id;
     doc.adj = doc.adj || {}; doc.extra = doc.extra || [];
@@ -1036,7 +1037,7 @@
     const hints = menuToday(date, p.id);
     let h = `<div class="medate"><button data-me="prev" aria-label="Попередній день">‹</button><b>${date === tk ? "Сьогодні" : WDF[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]}</b><button data-me="next" aria-label="Наступний день"${date >= tk ? " disabled" : ""}>›</button></div>
       <div class="card merings">${ring(day.k, goalK, "ккал", "--ink")}${ring(day.p, goalP, "білок, г", "--protein")}
-        <div class="mesm"><div><span>Жири</span><b>${r0(day.f)} г</b></div><div><span>Вуглеводи</span><b>${r0(day.c)} г</b></div><div><span>Записів</span><b>${log.length}</b></div></div></div>
+        <div class="mesm"><div><span>Жири</span><b>${r0(day.f)} г</b></div><div><span>Вуглеводи</span><b>${r0(day.c)} г</b></div><div><span>Клітковина</span><b>${r0(day.fib)} / 25 г</b></div><div><span>Залізо</span><b>${r1(day.fe)} / 18 мг</b></div></div></div>
       ${!goalK || !goalP ? `<p class="hint">Цілі на день (ккал і білок) — у «Ще» → люди.</p>` : goalP > day.p && date === tk ? `<p class="hint">До цілі по білку ще <b>${r0(goalP - day.p)} г</b>.</p>` : ""}
       <div class="card stack meadd">
         <label class="mebig">📷 <b>Сфотографувати тарілку</b><span>${ME.imgs.length ? `фото: ${ME.imgs.length} — можна додати ще` : "або кілька фото — все, що з'їла за раз"}</span><input type="file" id="meImg" accept="image/*" capture="environment" multiple hidden></label>
@@ -1051,8 +1052,8 @@
     for (const [m, label] of MEALS) {
       const xs = log.filter(x => x.meal === m); if (!xs.length) continue;
       const n = sumN(xs);
-      h += `<div class="group"><h3>${label} <small>${r0(n.k)} ккал · Б ${r0(n.p)}</small></h3><div class="list">${xs.map(x => `<div class="row eatrow tap${ME.open === x.id ? " open" : ""}" data-me="openE" data-id="${esc(x.id)}">${x.img ? `<img class="eimg" src="${x.img}" alt="">` : ""}<span class="nm">${esc(x.t)}<span class="src">${x.g ? `${r0(x.g)} г · ` : ""}${r0(x.k)} ккал · Б ${r0(x.p)} · Ж ${r0(x.f)} · У ${r0(x.c)}</span></span><button class="x" data-me="del" data-id="${esc(x.id)}" aria-label="Прибрати">×</button></div>
-        ${ME.open === x.id && (x.items || []).length ? `<div class="poredit">${x.items.map(it => `<div class="src">${esc(it.name)} · ${r0(it.grams)} г · ${r0(it.k)} ккал · Б ${r0(it.p)}</div>`).join("")}${x.note ? `<div class="src">💬 ${esc(x.note)}</div>` : ""}</div>` : ""}`).join("")}</div></div>`;
+      h += `<div class="group"><h3>${label} <small>${r0(n.k)} ккал · Б ${r0(n.p)}</small></h3><div class="list">${xs.map(x => `<div class="row eatrow tap${ME.open === x.id ? " open" : ""}" data-me="openE" data-id="${esc(x.id)}">${x.img ? `<img class="eimg" src="${x.img}" alt="">` : ""}<span class="nm">${esc(x.t)}<span class="src">${x.g ? `${r0(x.g)} г · ` : ""}${r0(x.k)} ккал · Б ${r0(x.p)} · Ж ${r0(x.f)} · У ${r0(x.c)}${x.fib != null ? ` · Кл ${r0(x.fib)} · Fe ${r1(x.fe || 0)}` : ""}</span></span><button class="x" data-me="del" data-id="${esc(x.id)}" aria-label="Прибрати">×</button></div>
+        ${ME.open === x.id && (x.items || []).length ? `<div class="poredit">${x.items.map(it => `<div class="src">${esc(it.name)} · ${r0(it.grams)} г · ${r0(it.k)} ккал · Б ${r0(it.p)}${it.fib != null ? ` · Кл ${r0(it.fib)} г · Fe ${r1(it.fe || 0)} мг` : ""}</div>`).join("")}${x.note ? `<div class="src">💬 ${esc(x.note)}</div>` : ""}</div>` : ""}`).join("")}</div></div>`;
     }
     if (!log.length) h += `<p class="hint" style="margin-top:12px">За цей день ще нічого. Сфотографуй, що їси, — решту порахує Gemini.</p>`;
     const days = []; for (let i = 6; i >= 0; i--) days.push(addDays(tk, -i));
@@ -1065,8 +1066,8 @@
   function estBox() {
     const e = ME.est, tot = sumN(e.items);
     return `<div class="meest">
-      ${e.items.map((it, i) => `<div class="estrow"><span class="nm">${esc(it.name)}<span class="src">${r0(it.k)} ккал · Б ${r0(it.p)} · Ж ${r0(it.f)} · У ${r0(it.c)}</span></span><input type="number" class="estg" data-i="${i}" value="${r0(it.grams)}" min="0" step="10" inputmode="numeric" aria-label="Грамів"><span class="hint">г</span><button class="x" data-me="estX" data-i="${i}" aria-label="Прибрати">×</button></div>`).join("")}
-      <div class="esttot"><b>Разом: ${r0(tot.k)} ккал</b> · Б ${r0(tot.p)} · Ж ${r0(tot.f)} · У ${r0(tot.c)}</div>
+      ${e.items.map((it, i) => `<div class="estrow"><span class="nm">${esc(it.name)}<span class="src">${r0(it.k)} ккал · Б ${r0(it.p)} · Ж ${r0(it.f)} · У ${r0(it.c)} · Кл ${r0(it.fib)} · Fe ${r1(it.fe)}</span></span><input type="number" class="estg" data-i="${i}" value="${r0(it.grams)}" min="0" step="10" inputmode="numeric" aria-label="Грамів"><span class="hint">г</span><button class="x" data-me="estX" data-i="${i}" aria-label="Прибрати">×</button></div>`).join("")}
+      <div class="esttot"><b>Разом: ${r0(tot.k)} ккал</b> · Б ${r0(tot.p)} · Ж ${r0(tot.f)} · У ${r0(tot.c)} · клітковина ${r0(tot.fib)} г · залізо ${r1(tot.fe)} мг</div>
       <div class="pbtns"><select id="meM">${MEALS.map(([m, l]) => `<option value="${m}"${m === (ME.meal || nowMeal()) ? " selected" : ""}>${l}</option>`).join("")}</select><button class="btn" data-me="add">Зберегти</button></div>
       <label class="chk"><input type="checkbox" id="meFav"> зберегти в «часті»</label>
     </div>`;
@@ -1079,7 +1080,7 @@
     }
     if (ev.target.classList.contains("estg") && ME.est) {
       const it = ME.est.items[+ev.target.dataset.i], g = +ev.target.value;
-      if (it && g >= 0 && it.grams > 0) { const k = g / it.grams; Object.assign(it, { grams: g, k: it.k * k, p: it.p * k, f: it.f * k, c: it.c * k }); }
+      if (it && g >= 0 && it.grams > 0) { const k = g / it.grams; Object.assign(it, { grams: g, k: it.k * k, p: it.p * k, f: it.f * k, c: it.c * k, fib: it.fib * k, fe: it.fe * k }); }
       renderMe();
     }
   });
@@ -1105,7 +1106,7 @@
     if (act === "estX" && ME.est) { ME.est.items.splice(+b.dataset.i, 1); if (!ME.est.items.length) ME.est = null; renderMe(); return; }
     if (act === "fav") {
       const f = ((S.meta.favs || {}).list || [])[+b.dataset.i]; if (!f) return;
-      await meWrite(ME.day, p.id, d => { d.extra.push({ id: Date.now().toString(36), t: f.t, meal: nowMeal(), g: f.g || null, k: f.k, p: f.p, f: f.f, c: f.c }); });
+      await meWrite(ME.day, p.id, d => { d.extra.push({ id: Date.now().toString(36), t: f.t, meal: nowMeal(), g: f.g || null, k: f.k, p: f.p, f: f.f, c: f.c, ...(f.fib != null ? { fib: f.fib, fe: f.fe } : {}) }); });
       toast(`Додала: ${f.t}`); return;
     }
     if (act === "est") {
@@ -1116,7 +1117,7 @@
       try {
         const menu = ME.hints.map(rid => { const r = recipe(rid), n = nutOf(r); const h = n.per100 || (n.g ? scaleN(n, 100 / n.g) : null); return { title: r.title, per100: h && { k: r0(h.k), p: r0(h.p), f: r0(h.f), c: r0(h.c) }, portionG: r0(n.g || 0) }; });
         const j = await window.AI.estimatePlate({ text, images: ME.imgs.map((x, i) => dataToFile(x, `plate${i}.jpg`)), plateCm: +p.plate || 0, menu });
-        const items = (j.items || []).map(x => ({ name: String(x.name || "?"), grams: +x.grams || 0, k: +x.k || 0, p: +x.p || 0, f: +x.f || 0, c: +x.c || 0 })).filter(x => x.k || x.grams);
+        const items = (j.items || []).map(x => ({ name: String(x.name || "?"), grams: +x.grams || 0, k: +x.k || 0, p: +x.p || 0, f: +x.f || 0, c: +x.c || 0, fib: +x.fib || 0, fe: +x.fe || 0 })).filter(x => x.k || x.grams);
         if (!items.length) throw Object.assign(new Error("empty"), { userMessage: "Gemini не розпізнав їжу. Додай коментар словами." });
         ME.est = { items }; ME.note = j.note ? `Gemini: ${j.note}` : "";
       } catch (e) { console.error(e); ME.note = e && e.userMessage || "Не вийшло порахувати. Спробуй ще раз."; }
@@ -1126,14 +1127,14 @@
       const items = ME.est.items, tot = sumN(items), meal = $("#meM").value, fav = $("#meFav").checked;
       const t = items.map(x => x.name).join(", ");
       const thumb = ME.imgs[0] ? await shrink(dataToFile(ME.imgs[0], "t.jpg"), 160, 0.7) : "";
-      const item = { id: Date.now().toString(36), t, meal, g: r0(items.reduce((a, x) => a + (+x.grams || 0), 0)) || null, k: r0(tot.k), p: r0(tot.p), f: r0(tot.f), c: r0(tot.c),
-        items: items.map(x => ({ name: x.name, grams: r0(x.grams), k: r0(x.k), p: r0(x.p), f: r0(x.f), c: r0(x.c) })) };
+      const item = { id: Date.now().toString(36), t, meal, g: r0(items.reduce((a, x) => a + (+x.grams || 0), 0)) || null, k: r0(tot.k), p: r0(tot.p), f: r0(tot.f), c: r0(tot.c), fib: r1(tot.fib), fe: r1(tot.fe),
+        items: items.map(x => ({ name: x.name, grams: r0(x.grams), k: r0(x.k), p: r0(x.p), f: r0(x.f), c: r0(x.c), fib: r1(x.fib), fe: r1(x.fe) })) };
       if (thumb) item.img = thumb;
       if (ME.text.trim()) item.note = ME.text.trim();
       const ok = await meWrite(ME.day, p.id, d => { d.extra.push(item); });
       if (ok && fav) {
         const list = ((S.meta.favs || {}).list || []).filter(f => f.t !== t);
-        list.unshift({ t, g: item.g, k: item.k, p: item.p, f: item.f, c: item.c });
+        list.unshift({ t, g: item.g, k: item.k, p: item.p, f: item.f, c: item.c, fib: item.fib, fe: item.fe });
         await save(() => Store.set("meta", "favs", { list: list.slice(0, 30) }));
       }
       if (ok) { Object.assign(ME, { est: null, text: "", imgs: [], thumb: "", hints: [], note: "", meal: null }); toast("Записала"); renderMe(); }
