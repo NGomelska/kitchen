@@ -1023,6 +1023,28 @@
       img.src = url;
     });
   }
+  /* коли зроблено фото: EXIF DateTimeOriginal з JPEG, інакше — дата файлу */
+  async function shotTime(file) {
+    try {
+      const v = new DataView(await file.slice(0, 131072).arrayBuffer());
+      if (v.getUint16(0) !== 0xFFD8) throw 0;
+      for (let o = 2; o + 4 < v.byteLength;) {
+        const mk = v.getUint16(o), len = v.getUint16(o + 2);
+        if (mk === 0xFFE1 && v.getUint32(o + 4) === 0x45786966) {
+          const t = o + 10, le = v.getUint16(t) === 0x4949, u16 = x => v.getUint16(t + x, le), u32 = x => v.getUint32(t + x, le);
+          const tag = (ifd, id) => { const n = u16(ifd); for (let i = 0; i < n; i++) { const e = ifd + 2 + i * 12; if (u16(e) === id) return e; } return 0; };
+          const str = e => { let s = ""; for (let i = 0; i < 19; i++) s += String.fromCharCode(v.getUint8(t + u32(e + 8) + i)); return s; };
+          const ifd0 = u32(4), ex = tag(ifd0, 0x8769), e = (ex && tag(u32(ex + 8), 0x9003)) || tag(ifd0, 0x0132);
+          if (e) { const m = str(e).match(/(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/); if (m) return new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]); }
+          break;
+        }
+        if ((mk & 0xFF00) !== 0xFF00 || mk === 0xFFDA) break;
+        o += 2 + len;
+      }
+    } catch (e) { /* не JPEG або без EXIF */ }
+    return new Date(file.lastModified || Date.now());
+  }
+  const mealAt = d => { const h = d.getHours(); return h < 11 ? "b" : h < 16 ? "l" : h < 21 ? "d" : "x"; };
   const dataToFile = (d, n) => { const [h, b64s] = d.split(","), bin = atob(b64s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new File([u], n, { type: "image/jpeg" }); };
   const menuToday = (date, pid) => MEALS.flatMap(([m]) => ((slotOf(date, m) || {}).dishes || []).filter(d => (d.who || []).includes(pid)).map(d => d.rid)).filter((v, i, a) => recipe(v) && a.indexOf(v) === i);
   function renderMe() {
@@ -1035,12 +1057,14 @@
       return `<div class="ring"><svg viewBox="0 0 72 72" width="72" height="72" aria-hidden="true"><circle cx="36" cy="36" r="${R}" fill="none" stroke="var(--paper-2)" stroke-width="8"/>${goal ? `<circle cx="36" cy="36" r="${R}" fill="none" stroke="var(${cls})" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C * pct} ${C}" transform="rotate(-90 36 36)"/>` : ""}</svg><b>${r0(v)}</b><span>${lbl}${goal ? ` з ${goal}` : ""}</span></div>`;
     };
     const hints = menuToday(date, p.id);
+    if (ME.batch) { box.innerHTML = batchBox(); return; }
     let h = `<div class="medate"><button data-me="prev" aria-label="Попередній день">‹</button><b>${date === tk ? "Сьогодні" : WDF[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]}</b><button data-me="next" aria-label="Наступний день"${date >= tk ? " disabled" : ""}>›</button></div>
       <div class="card merings">${ring(day.k, goalK, "ккал", "--ink")}${ring(day.p, goalP, "білок, г", "--protein")}
         <div class="mesm"><div><span>Жири</span><b>${r0(day.f)} г</b></div><div><span>Вуглеводи</span><b>${r0(day.c)} г</b></div><div><span>Клітковина</span><b>${r0(day.fib)} / 25 г</b></div><div><span>Залізо</span><b>${r1(day.fe)} / 18 мг</b></div></div></div>
       ${!goalK || !goalP ? `<p class="hint">Цілі на день (ккал і білок) — у «Ще» → люди.</p>` : goalP > day.p && date === tk ? `<p class="hint">До цілі по білку ще <b>${r0(goalP - day.p)} г</b>.</p>` : ""}
       <div class="card stack meadd">
         <label class="mebig">📷 <b>Сфотографувати тарілку</b><span>${ME.imgs.length ? `фото: ${ME.imgs.length} — можна додати ще` : "або кілька фото — все, що з'їла за раз"}</span><input type="file" id="meImg" accept="image/*" capture="environment" multiple hidden></label>
+        <label class="btn ghost wide" style="text-align:center">🖼 З галереї — все, що нафотографувала<input type="file" id="meGal" accept="image/*" multiple hidden></label>
         ${ME.thumb ? `<div class="methumbs">${ME.imgs.map(x => `<img src="${x}" alt="">`).join("")}<button class="x" data-me="clrImg" aria-label="Прибрати фото">×</button></div>` : ""}
         <input type="text" id="meT" placeholder="коментар: з'їла половину, ще сир і огірки…" value="${esc(ME.text)}">
         ${hints.length ? `<div><p class="hint" style="margin:0 0 4px">Є щось з меню? Тапни — Gemini візьме КБЖУ з рецепта:</p><div class="chips">${hints.map(rid => `<button class="chip small${ME.hints.includes(rid) ? " on" : ""}" data-me="hint" data-rid="${esc(rid)}">${esc(recipe(rid).title)}</button>`).join("")}</div></div>` : ""}
@@ -1063,6 +1087,50 @@
       ${filled.length ? `<p class="hint">У середньому: <b>${r0(filled.reduce((a, n) => a + n.k, 0) / filled.length)} ккал</b> · білок ${r0(filled.reduce((a, n) => a + n.p, 0) / filled.length)} г${goalP ? ` (ціль ${goalP})` : ""}</p>` : ""}</div>`;
     box.innerHTML = h;
   }
+  /* ---- кілька прийомів з галереї: фото групуються за часом зйомки (до 40 хв між ними = один прийом) ---- */
+  const menuInfo = rids => rids.filter(recipe).map(rid => { const r = recipe(rid), n = nutOf(r); const h = n.per100 || (n.g ? scaleN(n, 100 / n.g) : null); return { title: r.title, per100: h && { k: r0(h.k), p: r0(h.p), f: r0(h.f), c: r0(h.c) }, portionG: r0(n.g || 0) }; });
+  const estItems = j => (j.items || []).map(x => ({ name: String(x.name || "?"), grams: +x.grams || 0, k: +x.k || 0, p: +x.p || 0, f: +x.f || 0, c: +x.c || 0, fib: +x.fib || 0, fe: +x.fe || 0 })).filter(x => x.k || x.grams);
+  async function entryOf(items, meal, imgs, text) {
+    const tot = sumN(items), thumb = imgs[0] ? await shrink(dataToFile(imgs[0], "t.jpg"), 160, 0.7) : "";
+    const item = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t: items.map(x => x.name).join(", "), meal, g: r0(items.reduce((a, x) => a + (+x.grams || 0), 0)) || null, k: r0(tot.k), p: r0(tot.p), f: r0(tot.f), c: r0(tot.c), fib: r1(tot.fib), fe: r1(tot.fe),
+      items: items.map(x => ({ name: x.name, grams: r0(x.grams), k: r0(x.k), p: r0(x.p), f: r0(x.f), c: r0(x.c), fib: r1(x.fib), fe: r1(x.fe) })) };
+    if (thumb) item.img = thumb;
+    if (text.trim()) item.note = text.trim();
+    return item;
+  }
+  async function loadBatch(files) {
+    const shots = [];
+    for (const f of files.slice(0, 24)) { try { shots.push({ at: await shotTime(f), img: await shrink(f, 1280, 0.82) }); } catch (e) { console.error(e); } }
+    shots.sort((a, b) => a.at - b.at);
+    const gs = [];
+    for (const s of shots) {
+      const g = gs[gs.length - 1];
+      if (g && s.at - g.last < 40 * 60000 && iso(s.at) === g.date && g.imgs.length < 4) { g.imgs.push(s.img); g.last = s.at; }
+      else gs.push({ id: gs.length, at: s.at, last: s.at, date: iso(s.at), meal: mealAt(s.at), imgs: [s.img], text: "", est: null, busy: false, err: "" });
+    }
+    ME.batch = gs.length ? gs : null;
+    if (files.length > 24) toast("Взяла перші 24 фото.");
+  }
+  function batchBox() {
+    const gs = ME.batch, ready = gs.filter(g => g.est).length, todo = gs.filter(g => !g.est).length, busy = gs.some(g => g.busy);
+    const day = g => { const d = toDate(g.date); return `${g.date === todayKey() ? "Сьогодні" : WDF[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} · ${String(g.at.getHours()).padStart(2, "0")}:${String(g.at.getMinutes()).padStart(2, "0")}`; };
+    return `<div class="medate"><b>З галереї: ${gs.length} ${gs.length === 1 ? "прийом" : gs.length < 5 ? "прийоми" : "прийомів"}</b></div>
+      <p class="hint">Фото, зроблені з різницею до 40 хв, — один прийом. День і прийом їжі — за часом зйомки, можна змінити.</p>
+      ${gs.map((g, i) => `<div class="card stack meadd">
+        <div class="bhead"><b>${day(g)}</b><button class="x" data-me="bX" data-i="${i}" aria-label="Не рахувати">×</button></div>
+        <div class="methumbs">${g.imgs.map(x => `<img src="${x}" alt="">`).join("")}</div>
+        <div class="pbtns"><input type="date" class="bdate" data-i="${i}" value="${g.date}" max="${todayKey()}"><select class="bmeal" data-i="${i}">${MEALS.map(([m, l]) => `<option value="${m}"${m === g.meal ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+        <input type="text" class="btext" data-i="${i}" placeholder="коментар: з'їла половину…" value="${esc(g.text)}">
+        ${g.busy ? `<p class="hint">Рахую…</p>` : g.err ? `<p class="hint">${esc(g.err)}</p>` : ""}
+        ${g.est ? `<div class="meest">${g.est.map((it, j) => `<div class="estrow"><span class="nm">${esc(it.name)}<span class="src">${r0(it.k)} ккал · Б ${r0(it.p)}</span></span><input type="number" class="bg" data-i="${i}" data-j="${j}" value="${r0(it.grams)}" min="0" step="10" inputmode="numeric" aria-label="Грамів"><span class="hint">г</span><button class="x" data-me="bItX" data-i="${i}" data-j="${j}" aria-label="Прибрати">×</button></div>`).join("")}
+          <div class="esttot"><b>Разом: ${r0(sumN(g.est).k)} ккал</b> · Б ${r0(sumN(g.est).p)}</div></div>` : ""}
+      </div>`).join("")}
+      <div class="card stack meadd">
+        ${todo ? `<button class="btn green wide" data-me="bEst"${busy ? " disabled" : ""}>${busy ? "Рахую…" : `Порахувати ${todo === gs.length ? "все" : `решту (${todo})`}`}</button>` : ""}
+        ${ready ? `<button class="btn wide" data-me="bSave"${busy ? " disabled" : ""}>Зберегти пораховане (${ready})</button>` : ""}
+        <button class="btn ghost wide" data-me="bCancel"${busy ? " disabled" : ""}>Скасувати</button>
+      </div>`;
+  }
   function estBox() {
     const e = ME.est, tot = sumN(e.items);
     return `<div class="meest">
@@ -1078,6 +1146,20 @@
       for (const f of files) { try { ME.imgs.push(await shrink(f, 1280, 0.82)); } catch (e) { console.error(e); } }
       ME.thumb = ME.imgs.length ? "1" : ""; ME.text = ($("#meT") || {}).value || ME.text; renderMe();
     }
+    if (ev.target.id === "meGal") {
+      const files = [...ev.target.files]; if (!files.length) return;
+      $("#meBox").innerHTML = `<p class="hint" style="margin-top:12px">Читаю фото (${files.length})…</p>`;
+      await loadBatch(files); renderMe(); return;
+    }
+    const g = ME.batch && ME.batch[+ev.target.dataset.i];
+    if (g && ev.target.classList.contains("bdate") && ev.target.value) { g.date = ev.target.value; renderMe(); }
+    if (g && ev.target.classList.contains("bmeal")) g.meal = ev.target.value;
+    if (g && ev.target.classList.contains("btext")) g.text = ev.target.value;
+    if (g && ev.target.classList.contains("bg") && g.est) {
+      const it = g.est[+ev.target.dataset.j], gr = +ev.target.value;
+      if (it && gr >= 0 && it.grams > 0) { const k = gr / it.grams; Object.assign(it, { grams: gr, k: it.k * k, p: it.p * k, f: it.f * k, c: it.c * k, fib: it.fib * k, fe: it.fe * k }); }
+      renderMe();
+    }
     if (ev.target.classList.contains("estg") && ME.est) {
       const it = ME.est.items[+ev.target.dataset.i], g = +ev.target.value;
       if (it && g >= 0 && it.grams > 0) { const k = g / it.grams; Object.assign(it, { grams: g, k: it.k * k, p: it.p * k, f: it.f * k, c: it.c * k, fib: it.fib * k, fe: it.fe * k }); }
@@ -1089,6 +1171,33 @@
     const act = b.dataset.me, p = meP(), tk = todayKey();
     if ($("#meT")) ME.text = $("#meT").value;
     if ($("#meM")) ME.meal = $("#meM").value;
+    if (ME.batch) document.querySelectorAll("#meBox .btext").forEach(x => { const g = ME.batch[+x.dataset.i]; if (g) g.text = x.value; });
+    if (act === "bCancel") { ME.batch = null; renderMe(); return; }
+    if (act === "bX") { ME.batch.splice(+b.dataset.i, 1); if (!ME.batch.length) ME.batch = null; renderMe(); return; }
+    if (act === "bItX") { const g = ME.batch[+b.dataset.i]; g.est.splice(+b.dataset.j, 1); if (!g.est.length) g.est = null; renderMe(); return; }
+    if (act === "bEst") {
+      if (!window.AI || !window.AI.estimatePlate) { toast("Gemini ще не підключений (Ще → Ключ Gemini)."); return; }
+      for (const g of ME.batch.filter(x => !x.est)) {
+        g.busy = true; g.err = ""; renderMe();
+        try {
+          const rids = ((slotOf(g.date, g.meal) || {}).dishes || []).filter(d => (d.who || []).includes(p.id)).map(d => d.rid);
+          const j = await window.AI.estimatePlate({ text: g.text, images: g.imgs.map((x, i) => dataToFile(x, `plate${i}.jpg`)), plateCm: +p.plate || 0, menu: menuInfo(rids) });
+          g.est = estItems(j); if (!g.est.length) { g.est = null; g.err = "Gemini не розпізнав їжу — додай коментар і порахуй ще раз."; }
+        } catch (e) { console.error(e); g.err = e && e.userMessage || "Не вийшло порахувати. Спробуй ще раз."; }
+        g.busy = false; if (!ME.batch) return; renderMe();
+        if (/Ліміт|бюджет|баланс|оплат/i.test(g.err)) break;
+      }
+      return;
+    }
+    if (act === "bSave") {
+      const done = ME.batch.filter(g => g.est); let n = 0;
+      for (const g of done) {
+        const item = await entryOf(g.est, g.meal, g.imgs, g.text);
+        if (await meWrite(g.date, p.id, d => { d.extra.push(item); })) { n++; ME.batch = ME.batch.filter(x => x !== g); }
+      }
+      if (!ME.batch.length) ME.batch = null;
+      toast(`Записала: ${n}`); renderMe(); return;
+    }
     if (act === "prev") { ME.day = addDays(ME.day, -1); renderMe(); return; }
     if (act === "next") { if (ME.day < tk) ME.day = addDays(ME.day, 1); renderMe(); return; }
     if (act === "day") { ME.day = b.dataset.d; renderMe(); return; }
