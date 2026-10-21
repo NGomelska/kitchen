@@ -77,7 +77,7 @@
 
   const S = {
     items: [], recipes: [], slots: [], meta: {}, people: SEED.people,
-    tag: "all", rcat: "all", src: "all", q: "", pantryEdit: false,
+    tag: "all", rcat: "all", src: "all", q: "", pantryEdit: false, homeEdit: false,
     weekStart: null, day: null, viewP: "me", prepWho: "all", profile: "", aiKey: ""
   };
   let nutCache = new Map();
@@ -169,8 +169,10 @@
     const need = S.items.filter(i => i.need);
     const bought = S.items.filter(i => !i.need && i.boughtAt && now - i.boughtAt < 36 * 3600e3).sort((a, b) => b.boughtAt - a.boughtAt);
     const bIds = new Set(bought.map(i => i.id));
-    const pantry = S.items.filter(i => !i.need && i.staple && !bIds.has(i.id));
-    const stale = S.items.some(i => !i.need && !i.staple);
+    /* «Є вдома» (home) — що реально лежить вдома; «Постійні» (staple) — просто мітка «часто купуємо» */
+    const home = S.items.filter(i => !i.need && i.home && !bIds.has(i.id));
+    const staples = S.items.filter(i => !i.need && !i.home && i.staple);
+    const stale = bought.some(i => !i.staple);
     $("#cBuy").textContent = need.length || "";
     let h = `<div class="secthead" style="margin-top:6px"><h2>Треба купити <span class="n">${need.length || ""}</span></h2></div>`;
     if (!need.length) h += `<p class="empty">Усе куплено. Що закінчиться — натисни нижче в «Є вдома».</p>`;
@@ -180,19 +182,22 @@
       h += `</div></div>`;
     }
     if (bought.length) {
-      h += `<div class="secthead"><h2>Куплено</h2>${stale ? '<button class="btn ghost small" data-act="clear">Прибрати разові</button>' : ""}</div><div class="list">`;
+      h += `<div class="secthead"><h2>Куплено</h2>${stale ? '<button class="btn ghost small" data-act="clear">Сховати разові</button>' : ""}</div><div class="list">`;
       for (const i of bought) h += `<div class="row done" data-id="${esc(i.id)}"><button class="tick" data-act="unbuy" aria-label="Повернути: ${esc(i.name)}"><span></span></button><span class="nm">${esc(i.name)}</span></div>`;
-      h += `</div><p class="hint" style="margin-top:6px">Помилково відмітили? Натисни ще раз — продукт повернеться в список.</p>`;
+      h += `</div><p class="hint" style="margin-top:6px">Помилково відмітили? Натисни ще раз — продукт повернеться в список. Куплене само переходить в «Є вдома».</p>`;
     }
-    h += `<div class="secthead"><h2>Є вдома</h2>${pantry.length ? `<button class="btn ghost small" data-act="pedit">${S.pantryEdit ? "Готово" : "Редагувати"}</button>` : ""}</div>`;
-    h += `<p class="hint" style="margin-bottom:10px">${S.pantryEdit ? "Натисни ×, щоб прибрати продукт з постійних." : "Натисни на продукт, коли він закінчився, — він перейде в «Треба купити»."}</p>`;
-    if (!pantry.length) h += `<p class="empty">Постійні продукти з'являться тут після покупки.</p>`;
-    for (const [cat, arr] of groupByCat(pantry)) {
-      h += `<div class="group" style="margin-bottom:12px"><h3>${esc(cat)}</h3><div class="chips">`;
-      for (const i of arr) h += S.pantryEdit
-        ? `<span class="chip" data-id="${esc(i.id)}">${esc(i.name)} <button class="x" style="width:28px;height:28px" data-act="pdel" aria-label="Прибрати ${esc(i.name)}">×</button></span>`
-        : `<button class="chip" data-id="${esc(i.id)}" data-act="want"><span class="plus">+</span>${esc(i.name)}</button>`;
-      h += `</div></div>`;
+    const chips = (arr, edit, act, delAct) => groupByCat(arr).map(([cat, xs]) => `<div class="group" style="margin-bottom:12px"><h3>${esc(cat)}</h3><div class="chips">${xs.map(i => edit
+      ? `<span class="chip" data-id="${esc(i.id)}">${esc(i.name)} <button class="x" style="width:28px;height:28px" data-act="${delAct}" aria-label="Прибрати ${esc(i.name)}">×</button></span>`
+      : `<button class="chip" data-id="${esc(i.id)}" data-act="${act}">${act === "want" ? `<span class="plus">+</span>` : ""}${esc(i.name)}</button>`).join("")}</div></div>`).join("");
+    h += `<div class="secthead"><h2>Є вдома</h2><button class="btn ghost small" data-act="hedit">${S.homeEdit ? "Готово" : "Редагувати"}</button></div>`;
+    h += `<p class="hint" style="margin-bottom:10px">${S.homeEdit ? "× — цього вже нема вдома. Нижче можна дописати, що є." : "Натисни на продукт, коли він закінчився, — він перейде в «Треба купити»."}</p>`;
+    if (S.homeEdit) h += `<form class="meq" data-form="home" style="margin-bottom:10px"><input type="text" id="homeAdd" placeholder="що є вдома: рис, гречка, яйця…" autocomplete="off"><button class="btn small">Додати</button></form>`;
+    if (!home.length) h += `<p class="empty">${S.homeEdit ? "Допиши вище, що зараз є вдома." : "Поки порожньо. Натисни «Редагувати» і допиши, що є вдома, — або відміть покупки, вони потраплять сюди самі."}</p>`;
+    h += chips(home, S.homeEdit, "out", "hdel");
+    if (staples.length || S.pantryEdit) {
+      h += `<div class="secthead"><h2>Постійні продукти</h2>${staples.length ? `<button class="btn ghost small" data-act="pedit">${S.pantryEdit ? "Готово" : "Редагувати"}</button>` : ""}</div>`;
+      h += `<p class="hint" style="margin-bottom:10px">${S.pantryEdit ? "Натисни ×, щоб прибрати продукт з постійних." : "Що часто купуємо. Натисни — додасться в «Треба купити»."}</p>`;
+      h += chips(staples, S.pantryEdit, "want", "pdel");
     }
     $("#buyList").innerHTML = h;
   }
@@ -200,13 +205,27 @@
     const b = ev.target.closest("[data-act]"); if (!b) return;
     const act = b.dataset.act, id = b.closest("[data-id]")?.dataset.id, it = id && S.items.find(i => i.id === id);
     if (act === "pedit") { S.pantryEdit = !S.pantryEdit; renderBuy(); return; }
-    if (act === "clear") { for (const i of S.items.filter(i => !i.need && !i.staple)) await save(() => Store.del("items", i.id)); return; }
+    if (act === "hedit") { S.homeEdit = !S.homeEdit; renderBuy(); if (S.homeEdit) $("#homeAdd")?.focus(); return; }
+    if (act === "clear") { for (const i of S.items.filter(i => !i.need && !i.staple && i.boughtAt)) await save(() => Store.update("items", i.id, { boughtAt: null })); return; }
     if (!it) return;
-    if (act === "buy") save(() => Store.update("items", id, { need: false, boughtAt: Date.now() }));
-    else if (act === "unbuy") save(() => Store.update("items", id, { need: true, boughtAt: null }));
+    if (act === "buy") save(() => Store.update("items", id, { need: false, home: true, boughtAt: Date.now() }));
+    else if (act === "unbuy") save(() => Store.update("items", id, { need: true, home: false, boughtAt: null }));
     else if (act === "want") save(() => Store.update("items", id, { need: true, boughtAt: null, addedAt: Date.now(), amount: "" }));
-    else if (act === "del") save(() => it.staple ? Store.update("items", id, { need: false, amount: "" }) : Store.del("items", id));
-    else if (act === "pdel") save(() => Store.del("items", id));
+    else if (act === "out") save(() => Store.update("items", id, { need: true, home: false, boughtAt: null, addedAt: Date.now(), amount: "" }));
+    else if (act === "del") save(() => it.staple || it.home ? Store.update("items", id, { need: false, amount: "" }) : Store.del("items", id));
+    else if (act === "hdel") save(() => it.staple ? Store.update("items", id, { home: false }) : Store.del("items", id));
+    else if (act === "pdel") save(() => it.home ? Store.update("items", id, { staple: false }) : Store.del("items", id));
+  });
+  $("#buyList").addEventListener("submit", async ev => {
+    if (ev.target.dataset.form !== "home") return;
+    ev.preventDefault();
+    const names = $("#homeAdd").value.split(/[,;\n]/).map(x => cap(x.trim())).filter(Boolean);
+    for (const name of names) {
+      const ex = sameItem(name);
+      if (ex) await save(() => Store.update("items", ex.id, { home: true, need: false, amount: "" }));
+      else await save(() => Store.set("items", Store.newId("i"), { name, cat: guessCat(name), staple: false, home: true, need: false, amount: "", boughtAt: null, addedAt: Date.now() }));
+    }
+    $("#homeAdd")?.focus();
   });
   async function addToList(name, amount) {
     const ex = sameItem(name);
@@ -563,7 +582,7 @@
         <p class="hint">Зніми галочку з того, що вже є вдома. «За смаком» — спеції й дрібниці, зазвичай вони є.</p>
         <div class="card ing" id="planRows">${rows.map((r, n) => {
           // бакалія «є вдома» — зазвичай вистачає; свіже (м'ясо, овочі, молочне) купуємо під меню
-          const m = sameItem(r.name), home = m && m.staple && !m.need, shelf = home && m.cat === "Бакалія";
+          const m = sameItem(r.name), home = m && m.home && !m.need, shelf = home && m.cat === "Бакалія";
           return `<label><input type="checkbox" data-n="${n}" ${r.qty != null && !shelf ? "checked" : ""}><span style="flex:1">${esc(cap(r.name))}<span class="src">${shelf ? "є вдома · " : home ? "є вдома, перевір кількість · " : ""}для: ${esc(r.from.join(", "))}</span></span><span class="q">${esc(r.label)}</span></label>`;
         }).join("")}</div>
         <button class="btn green wide" data-act="planAdd">Додати відмічене в покупки</button>
@@ -1261,7 +1280,7 @@
     const people = S.people.map(x => `${x.id} = ${x.name} (порція ×${N(+x.w || 1)})`).join("; ");
     const tl = tryList();
     const line = r => { const n = nutOf(r); return `${r.id}|${r.title}|${r.simple ? "простий гарнір/додаток" : catOf(r)}|${GROUPS[r.group] || "страва"}|${(r.tags || []).join(",")}|${r0(n.k)} ккал, Б ${r0(n.p)}${r.time && r.time.total ? `|${r.time.total} хв` : ""}${r.src ? "|книга" : ""}${tl.includes(r.id) ? "|ХОЧУ СПРОБУВАТИ" : ""}`; };
-    const stock = S.items.filter(i => i.staple && !i.need).map(i => i.name).join(", ");
+    const stock = S.items.filter(i => i.home && !i.need).map(i => i.name).join(", ");
     const dates = Array.from({ length: days }, (_, i) => { const d = addDays(start, i); return `${d} (${WDF[toDate(d).getDay()]})`; }).join(", ");
     const recent = S.slots.filter(s => s.date >= addDays(start, -7) && s.date < start).flatMap(s => (s.dishes || []).map(d => recipe(d.rid)?.title)).filter(Boolean);
     const before = S.slots.filter(s => s.date === addDays(start, -1)).flatMap(s => (s.dishes || []).filter(d => !d.left).map(d => `${s.meal}: ${recipe(d.rid)?.title} (${d.rid})`));
