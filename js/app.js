@@ -168,9 +168,8 @@
     const now = Date.now();
     const need = S.items.filter(i => i.need);
     const bought = S.items.filter(i => !i.need && i.boughtAt && now - i.boughtAt < 36 * 3600e3).sort((a, b) => b.boughtAt - a.boughtAt);
-    const bIds = new Set(bought.map(i => i.id));
     /* «Є вдома» (home) — що реально лежить вдома; «Постійні» (staple) — просто мітка «часто купуємо» */
-    const home = S.items.filter(i => !i.need && i.home && !bIds.has(i.id));
+    const home = S.items.filter(i => !i.need && i.home);
     const staples = S.items.filter(i => !i.need && !i.home && i.staple);
     const stale = bought.some(i => !i.staple);
     $("#cBuy").textContent = need.length || "";
@@ -178,17 +177,18 @@
     if (!need.length) h += `<p class="empty">Усе куплено. Що закінчиться — натисни нижче в «Є вдома».</p>`;
     for (const [cat, arr] of groupByCat(need)) {
       h += `<div class="group" style="margin-bottom:12px"><h3>${esc(cat)}</h3><div class="list">`;
-      for (const i of arr) h += `<div class="row" data-id="${esc(i.id)}"><button class="tick" data-act="buy" aria-label="Куплено: ${esc(i.name)}"><span></span></button><span class="nm">${esc(i.name)}</span>${i.amount ? `<span class="pill amt">${esc(i.amount)}</span>` : ""}<button class="x" data-act="del" aria-label="Прибрати ${esc(i.name)}">×</button></div>`;
+      for (const i of arr) h += `<div class="row" data-id="${esc(i.id)}"><button class="tick" data-act="buy" aria-label="Куплено: ${esc(i.name)}"><span></span></button><span class="nm">${esc(i.name)}</span>${i.amount ? `<span class="pill amt">${esc(i.amount)}</span>` : ""}<button class="hb" data-act="has" aria-label="Вже є вдома: ${esc(i.name)}" title="Вже є вдома">🏠</button><button class="x" data-act="del" aria-label="Прибрати ${esc(i.name)}">×</button></div>`;
       h += `</div></div>`;
     }
     if (bought.length) {
       h += `<div class="secthead"><h2>Куплено</h2>${stale ? '<button class="btn ghost small" data-act="clear">Сховати разові</button>' : ""}</div><div class="list">`;
       for (const i of bought) h += `<div class="row done" data-id="${esc(i.id)}"><button class="tick" data-act="unbuy" aria-label="Повернути: ${esc(i.name)}"><span></span></button><span class="nm">${esc(i.name)}</span></div>`;
-      h += `</div><p class="hint" style="margin-top:6px">Помилково відмітили? Натисни ще раз — продукт повернеться в список. Куплене само переходить в «Є вдома».</p>`;
+      h += `</div><p class="hint" style="margin-top:6px">Помилково відмітили? Натисни ще раз — продукт повернеться в список. Куплене вже лежить і в «Є вдома». 🏠 у списку — «вже є, купувати не треба».</p>`;
     }
     const chips = (arr, edit, act, delAct) => groupByCat(arr).map(([cat, xs]) => `<div class="group" style="margin-bottom:12px"><h3>${esc(cat)}</h3><div class="chips">${xs.map(i => edit
       ? `<span class="chip" data-id="${esc(i.id)}">${esc(i.name)} <button class="x" style="width:28px;height:28px" data-act="${delAct}" aria-label="Прибрати ${esc(i.name)}">×</button></span>`
-      : `<button class="chip" data-id="${esc(i.id)}" data-act="${act}">${act === "want" ? `<span class="plus">+</span>` : ""}${esc(i.name)}</button>`).join("")}</div></div>`).join("");
+      : act === "want" ? `<span class="chip st" data-id="${esc(i.id)}">${esc(i.name)}<button data-act="want" aria-label="Купити: ${esc(i.name)}" title="Купити">🛒</button><button data-act="has" aria-label="Є вдома: ${esc(i.name)}" title="Є вдома">🏠</button></span>`
+      : `<button class="chip" data-id="${esc(i.id)}" data-act="${act}">${esc(i.name)}</button>`).join("")}</div></div>`).join("");
     h += `<div class="secthead"><h2>Є вдома</h2><button class="btn ghost small" data-act="hedit">${S.homeEdit ? "Готово" : "Редагувати"}</button></div>`;
     h += `<p class="hint" style="margin-bottom:10px">${S.homeEdit ? "× — цього вже нема вдома. Нижче можна дописати, що є." : "Натисни на продукт, коли він закінчився, — він перейде в «Треба купити»."}</p>`;
     if (S.homeEdit) h += `<form class="meq" data-form="home" style="margin-bottom:10px"><input type="text" id="homeAdd" placeholder="що є вдома: рис, гречка, яйця…" autocomplete="off"><button class="btn small">Додати</button></form>`;
@@ -196,7 +196,7 @@
     h += chips(home, S.homeEdit, "out", "hdel");
     if (staples.length || S.pantryEdit) {
       h += `<div class="secthead"><h2>Постійні продукти</h2>${staples.length ? `<button class="btn ghost small" data-act="pedit">${S.pantryEdit ? "Готово" : "Редагувати"}</button>` : ""}</div>`;
-      h += `<p class="hint" style="margin-bottom:10px">${S.pantryEdit ? "Натисни ×, щоб прибрати продукт з постійних." : "Що часто купуємо. Натисни — додасться в «Треба купити»."}</p>`;
+      h += `<p class="hint" style="margin-bottom:10px">${S.pantryEdit ? "Натисни ×, щоб прибрати продукт з постійних." : "Що часто купуємо. 🛒 — у «Треба купити», 🏠 — у «Є вдома»."}</p>`;
       h += chips(staples, S.pantryEdit, "want", "pdel");
     }
     $("#buyList").innerHTML = h;
@@ -211,6 +211,7 @@
     if (act === "buy") save(() => Store.update("items", id, { need: false, home: true, boughtAt: Date.now() }));
     else if (act === "unbuy") save(() => Store.update("items", id, { need: true, home: false, boughtAt: null }));
     else if (act === "want") save(() => Store.update("items", id, { need: true, boughtAt: null, addedAt: Date.now(), amount: "" }));
+    else if (act === "has") save(() => Store.update("items", id, { need: false, home: true, boughtAt: null, amount: "" }));
     else if (act === "out") save(() => Store.update("items", id, { need: true, home: false, boughtAt: null, addedAt: Date.now(), amount: "" }));
     else if (act === "del") save(() => it.staple || it.home ? Store.update("items", id, { need: false, amount: "" }) : Store.del("items", id));
     else if (act === "hdel") save(() => it.staple ? Store.update("items", id, { home: false }) : Store.del("items", id));
