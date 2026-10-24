@@ -177,7 +177,7 @@
     if (!need.length) h += `<p class="empty">Усе куплено. Що закінчиться — натисни нижче в «Є вдома».</p>`;
     for (const [cat, arr] of groupByCat(need)) {
       h += `<div class="group" style="margin-bottom:12px"><h3>${esc(cat)}</h3><div class="list">`;
-      for (const i of arr) h += `<div class="row" data-id="${esc(i.id)}"><button class="tick" data-act="buy" aria-label="Куплено: ${esc(i.name)}"><span></span></button><span class="nm">${esc(i.name)}</span>${i.amount ? `<span class="pill amt">${esc(i.amount)}</span>` : ""}<button class="hb" data-act="has" aria-label="Вже є вдома: ${esc(i.name)}" title="Вже є вдома">🏠</button><button class="x" data-act="del" aria-label="Прибрати ${esc(i.name)}">×</button></div>`;
+      for (const i of arr) h += `<div class="row" data-id="${esc(i.id)}"><button class="tick" data-act="buy" aria-label="Куплено: ${esc(i.name)}"><span></span></button><span class="nm">${esc(i.name)}</span><button class="pill amt${i.amount ? "" : " empty"}" data-act="amt" aria-label="Кількість: ${esc(i.name)}">${i.amount ? esc(i.amount) : "+ к-сть"}</button><button class="hb" data-act="has" aria-label="Вже є вдома: ${esc(i.name)}" title="Вже є вдома">🏠</button><button class="x" data-act="del" aria-label="Прибрати ${esc(i.name)}">×</button></div>`;
       h += `</div></div>`;
     }
     if (bought.length) {
@@ -264,6 +264,10 @@ ${need || "— порожній"}
     if (act === "buy") save(() => Store.update("items", id, { need: false, home: true, boughtAt: Date.now() }));
     else if (act === "unbuy") save(() => Store.update("items", id, { need: true, home: false, boughtAt: null }));
     else if (act === "want") save(() => Store.update("items", id, { need: true, boughtAt: null, addedAt: Date.now(), amount: "" }));
+    else if (act === "amt") {
+      const v = prompt(`Скільки купити: ${it.name}? (напр. 1 кг, 500 г, 2 шт; порожньо — без кількості)`, it.amount || "");
+      if (v !== null) save(() => Store.update("items", id, { amount: v.trim() }));
+    }
     else if (act === "has") save(() => Store.update("items", id, { need: false, home: true, boughtAt: null, amount: "" }));
     else if (act === "out") save(() => Store.update("items", id, { need: true, home: false, boughtAt: null, addedAt: Date.now(), amount: "" }));
     else if (act === "del") save(() => it.staple || it.home ? Store.update("items", id, { need: false, amount: "" }) : Store.del("items", id));

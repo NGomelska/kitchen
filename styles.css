@@ -300,3 +300,5 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .rcbtn{text-align:center;margin:6px 0 4px}
 .rc{margin-top:8px;display:grid;gap:8px}
 .rc h3{margin:0}
+button.pill.amt{border:0;cursor:pointer;font:inherit;font-size:.8rem;font-weight:700;min-height:32px;padding:4px 10px}
+button.pill.amt.empty{background:none;color:var(--ink-soft);font-weight:600}
