@@ -173,7 +173,7 @@
     const staples = S.items.filter(i => !i.need && !i.home && i.staple);
     const stale = bought.some(i => !i.staple);
     $("#cBuy").textContent = need.length || "";
-    let h = `<div class="secthead" style="margin-top:6px"><h2>Треба купити <span class="n">${need.length || ""}</span></h2></div>`;
+    let h = rcBox() + `<div class="secthead" style="margin-top:6px"><h2>Треба купити <span class="n">${need.length || ""}</span></h2></div>`;
     if (!need.length) h += `<p class="empty">Усе куплено. Що закінчиться — натисни нижче в «Є вдома».</p>`;
     for (const [cat, arr] of groupByCat(need)) {
       h += `<div class="group" style="margin-bottom:12px"><h3>${esc(cat)}</h3><div class="list">`;
@@ -201,9 +201,62 @@
     }
     $("#buyList").innerHTML = h;
   }
+  /* ---- чек → покупки: Gemini читає чек, позиції зі списку стають купленими, решта — в «Є вдома» ---- */
+  let RC = null;
+  function rcBox() {
+    if (!RC) return `<label class="btn ghost wide rcbtn">🧾 Фото чека — відмітити куплене<input type="file" id="rcImg" accept="image/*" multiple hidden></label>`;
+    if (RC.busy) return `<div class="card rc"><p class="hint">Читаю чек…</p></div>`;
+    if (!RC.rows) return `<div class="card rc"><p class="hint">${esc(RC.note)}</p><div class="pbtns" style="margin-top:0"><label class="btn">Ще раз<input type="file" id="rcImg" accept="image/*" multiple hidden></label><button class="btn ghost" data-act="rcX">Закрити</button></div></div>`;
+    const on = RC.rows.filter(x => x.on);
+    return `<div class="card rc"><h3>З чека: ${RC.rows.length}</h3>
+      <p class="hint">✓ зі списку — стане купленим. Решта піде в «Є вдома». Зніми галочку з того, що не треба.</p>
+      <div class="ing">${RC.rows.map((x, i) => { const m = x.match && S.items.find(it => it.id === x.match); return `<label><input type="checkbox" data-rc="${i}"${x.on ? " checked" : ""}><span style="flex:1">${esc(x.name)}<span class="src">${m ? `✓ зі списку: ${esc(m.name)}` : "→ в «Є вдома»"}${x.sk ? ` · ${esc(x.sk)}` : ""}</span></span><span class="q">${esc(x.qty || "")}</span></label>`; }).join("")}</div>
+      <div class="pbtns"><button class="btn green" data-act="rcGo"${on.length ? "" : " disabled"}>Відмітити (${on.length})</button><button class="btn ghost" data-act="rcX">Скасувати</button></div>
+    </div>`;
+  }
+  async function readReceipt(files) {
+    if (!window.AI || !window.AI.readReceipt) { toast("Gemini ще не підключений (Ще → Ключ Gemini)."); return; }
+    RC = { busy: true }; renderBuy();
+    try {
+      const imgs = []; for (const f of files.slice(0, 3)) imgs.push(dataToFile(await shrink(f, 1600, 0.85), "receipt.jpg"));
+      const need = S.items.filter(i => i.need).map(i => `${i.id} | ${i.name}${i.amount ? ` (${i.amount})` : ""}`).join("\n");
+      const known = S.items.filter(i => !i.need).map(i => i.name).join(", ");
+      const prompt = `На фото — чек зі словацького магазину (Lidl, Kaufland, Billa, dm тощо); якщо фото кілька — це частини одного чека.
+Випиши всі куплені товари. НЕ включай: пакети (taška), заставу за пляшки (záloha), знижки (zľava), підсумки, оплату.
+Для кожного товару:
+- name: коротка назва українською, як у сімейному списку покупок («Фарш з індички», «Молоко», «Картопля», «Кисломолочний сир»). Якщо товар уже є серед відомих назв — використай саме її.
+- sk: назва як на чеку.
+- qty: кількість або вага коротко («1 кг», «2 шт», «500 г»); якщо не видно — "".
+- match: id пункту зі списку «Треба купити», якщо це той самий продукт (навіть інша марка чи інша вага); інакше null.
+Список «Треба купити» (id | назва):
+${need || "— порожній"}
+Відомі назви: ${known}
+Поверни ТІЛЬКИ JSON: {"items":[{"name":"","sk":"","qty":"","match":null}]}`;
+      const j = await window.AI.readReceipt({ prompt, images: imgs });
+      const ids = new Set(S.items.filter(i => i.need).map(i => i.id));
+      const rows = (j.items || []).filter(x => x && x.name).map(x => ({ name: cap(String(x.name)), sk: String(x.sk || ""), qty: String(x.qty || ""), match: ids.has(x.match) ? x.match : null, on: true }));
+      RC = rows.length ? { rows } : { note: "На чеку не знайшла товарів. Сфотографуй рівніше й ще раз." };
+    } catch (e) { console.error(e); RC = { note: e && e.userMessage || "Не вийшло прочитати чек. Спробуй ще раз." }; }
+    renderBuy();
+  }
+  $("#buyList").addEventListener("change", ev => {
+    if (ev.target.id === "rcImg") { const fs = [...ev.target.files]; if (fs.length) readReceipt(fs); return; }
+    if (ev.target.dataset.rc != null && RC && RC.rows) { RC.rows[+ev.target.dataset.rc].on = ev.target.checked; renderBuy(); }
+  });
   $("#buyList").addEventListener("click", async ev => {
     const b = ev.target.closest("[data-act]"); if (!b) return;
     const act = b.dataset.act, id = b.closest("[data-id]")?.dataset.id, it = id && S.items.find(i => i.id === id);
+    if (act === "rcX") { RC = null; renderBuy(); return; }
+    if (act === "rcGo" && RC && RC.rows) {
+      const now = Date.now(); let n = 0;
+      for (const x of RC.rows.filter(x => x.on)) {
+        const ex = (x.match && S.items.find(i => i.id === x.match)) || sameItem(x.name);
+        const ok = ex ? await save(() => Store.update("items", ex.id, { need: false, home: true, boughtAt: now }))
+          : await save(() => Store.set("items", Store.newId("i"), { name: x.name, cat: guessCat(x.name), staple: false, home: true, need: false, amount: "", boughtAt: now, addedAt: now }));
+        if (ok) n++;
+      }
+      RC = null; renderBuy(); toast(`Відмітила з чека: ${n}`); return;
+    }
     if (act === "pedit") { S.pantryEdit = !S.pantryEdit; renderBuy(); return; }
     if (act === "hedit") { S.homeEdit = !S.homeEdit; renderBuy(); if (S.homeEdit) $("#homeAdd")?.focus(); return; }
     if (act === "clear") { for (const i of S.items.filter(i => !i.need && !i.staple && i.boughtAt)) await save(() => Store.update("items", i.id, { boughtAt: null })); return; }
@@ -659,19 +712,34 @@
       ${later.length ? `<p class="hint">Залишки вже стоять: ${later.map(s => slotLabel(s.date, s.meal)).join(", ")}.</p><button class="btn ghost small" data-act="leftDone">✓ Доїли — прибрати залишки</button>` : `<p class="hint">Лишилось? Додам на вибраний обід чи вечерю тим самим людям.</p>`}
     </div>`;
   }
+  /* «Додати в меню» прямо з рецепта: день → прийом їжі → хто їсть */
+  function addBar(r) {
+    const a = view.add;
+    if (!a) return `<button class="btn ghost wide" data-act="addOpen">📅 Додати в меню</button>`;
+    const tk = todayKey(), days = Array.from({ length: 14 }, (_, i) => addDays(tk, i));
+    const dayLbl = d => `${d === tk ? "сьогодні" : d === addDays(tk, 1) ? "завтра" : WDF[toDate(d).getDay()]}, ${toDate(d).getDate()} ${MON[toDate(d).getMonth()]}`;
+    const there = ((slotOf(a.date, a.meal) || {}).dishes || []).map(d => recipe(d.rid)?.title).filter(Boolean);
+    return `<div class="card leftbar">
+      <b>Додати в меню</b>
+      <div class="row2"><select id="addDay">${days.map(d => `<option value="${d}"${d === a.date ? " selected" : ""}>${dayLbl(d)}</option>`).join("")}</select><select id="addMeal">${MEALS.map(([m, l]) => `<option value="${m}"${m === a.meal ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="whorow"><span class="hint">Хто їсть:</span>${S.people.map(x => `<button class="av big${a.who.includes(x.id) ? "" : " off"}" data-act="addW" data-p="${esc(x.id)}" aria-pressed="${a.who.includes(x.id)}" aria-label="${esc(x.name)}">${esc(x.short || x.name[0])}</button>`).join("")}</div>
+      <p class="hint">${there.length ? `Там уже: ${esc(there.join(", "))}.` : "Там поки порожньо."}</p>
+      <div class="pbtns" style="margin-top:0"><button class="btn" data-act="addGo">Додати</button><button class="btn ghost" data-act="addCancel">Скасувати</button></div>
+    </div>`;
+  }
   const tryList = () => ((S.meta.try || {}).ids || []);
   function openRecipe(id, por, ctx) {
     const r = recipe(id); if (!r) return;
     const base = +r.servings || 1;
     if (ctx === undefined) ctx = view && view.id === id ? view.ctx : null;
-    view = { id, por: por || base, ctx };
+    view = { id, por: por || base, ctx, add: view && view.id === id ? view.add : null };
     const liked = tryList().includes(id);
     const k = view.por / base, n = nutOf(r);
     const link = safeUrl(r.link);
     openSheet(`<div class="shhead"><button class="btn ghost small" data-act="close">← Назад</button><span style="flex:1"></span><button class="btn ghost small heart${liked ? " on" : ""}" data-act="try" aria-pressed="${liked}" aria-label="Хочу спробувати">${liked ? "❤" : "♡"}</button><button class="btn ghost small" data-act="edit">Редагувати</button></div>
     <div class="stack" data-rid="${esc(r.id)}">
       <h2 style="font-size:2rem">${esc(r.title)}</h2>
-      ${ctx && ctx.meal ? leftBar(r, ctx) : ""}
+      ${ctx && ctx.meal ? leftBar(r, ctx) : addBar(r)}
       <div class="tags">${r.src ? `<span class="pill">📖 ${esc(r.src)}</span>` : ""}<span class="pill">${esc(catOf(r))}</span><span class="pill"><i class="sw g-${GROUPS[r.group] ? r.group : "dish"}"></i> ${esc(GROUPS[r.group] || "Ціла страва")}</span>${(r.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
       <div class="hero">${Art.bowl(r, catOf(r), 132)}</div>
       ${r.time && r.time.total ? `<p class="timeline">⏱ Разом <b>${fmtMin(r.time.total)}</b>${r.time.active ? ` · біля плити <b>${fmtMin(r.time.active)}</b>` : ""}</p>` : ""}
@@ -744,6 +812,20 @@
     const r = recipe(rid);
     if (!r) return;
     if (act === "edit") { openForm(r); return; }
+    if (act === "addOpen") { view.add = { date: todayKey(), meal: r.group === "sweet" ? "b" : "d", who: S.people.map(x => x.id) }; openRecipe(r.id, view.por); return; }
+    if (act === "addCancel") { view.add = null; openRecipe(r.id, view.por); return; }
+    if (act === "addW" && view.add) {
+      const w = new Set(view.add.who); w.has(b.dataset.p) ? w.delete(b.dataset.p) : w.add(b.dataset.p);
+      view.add.who = S.people.map(x => x.id).filter(x => w.has(x)); openRecipe(r.id, view.por); return;
+    }
+    if (act === "addGo" && view.add) {
+      const a = view.add; if (!a.who.length) { toast("Хтось має їсти — тапни на людей."); return; }
+      const sl = slotOf(a.date, a.meal), dishes = structuredClone(sl ? sl.dishes || [] : []), ex = dishes.find(x => x.rid === r.id);
+      if (ex) { ex.who = [...a.who]; delete ex.left; } else dishes.push({ rid: r.id, who: [...a.who] });
+      const ok = await save(() => Store.set("slots", `${a.date}_${a.meal}`, { date: a.date, meal: a.meal, dishes }));
+      if (ok) { view.add = null; toast(`В меню: ${a.date === todayKey() ? "сьогодні" : WDA[toDate(a.date).getDay()]}, ${MEALS.find(x => x[0] === a.meal)[1].toLowerCase()}`); setTimeout(() => openRecipe(r.id, view.por), 200); }
+      return;
+    }
     if (act === "try") {
       const ids = tryList().filter(x => x !== r.id); if (!tryList().includes(r.id)) ids.unshift(r.id);
       const ok = await save(() => Store.set("meta", "try", { ids }));
@@ -795,6 +877,11 @@
       if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Точно видалити? Натисни ще раз"; return; }
       if (await save(() => Store.del("recipes", r.id))) { closeSheet(); toast("Рецепт видалено"); }
     }
+  });
+
+  $("#sheet").addEventListener("change", ev => {
+    if (!view.add || !["addDay", "addMeal"].includes(ev.target.id)) return;
+    view.add[ev.target.id === "addDay" ? "date" : "meal"] = ev.target.value; openRecipe(view.id, view.por);
   });
 
   /* форма рецепта */

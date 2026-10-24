@@ -297,3 +297,6 @@ nav.tabs button[aria-selected=true]{color:var(--ink)}
 .row .hb{border:0;background:none;font-size:1.05rem;min-width:40px;min-height:40px;cursor:pointer;opacity:.8}
 .chip.st{padding-right:4px;gap:2px}
 .chip.st button{border:0;background:var(--paper-2);border-radius:99px;min-width:34px;min-height:30px;margin-left:4px;cursor:pointer;font-size:.95rem}
+.rcbtn{text-align:center;margin:6px 0 4px}
+.rc{margin-top:8px;display:grid;gap:8px}
+.rc h3{margin:0}
